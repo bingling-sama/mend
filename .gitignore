@@ -1,0 +1,12 @@
+/target
+**/*.rs.bk
+Cargo.lock
+
+# IDE & system
+.DS_Store
+.idea/
+.vscode/
+
+# Agent caches & sessions
+.omo/
+.codegraph

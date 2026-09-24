@@ -1,0 +1,17 @@
+[package]
+name = "heal-capture"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+heal-core = { workspace = true }
+regex = { workspace = true }
+portable-pty = { workspace = true }
+strip-ansi-escapes = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
