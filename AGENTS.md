@@ -5,15 +5,15 @@
 **Branch:** main
 
 ## OVERVIEW
-jev-heal is a high-performance terminal error self-healing engine (Rust single binary) providing safe, zero-side-effect error correction for human developers and autonomous AI coding agents.
+mend is a high-performance terminal error self-healing engine (Rust single binary) providing safe, zero-side-effect error correction for human developers and autonomous AI coding agents.
 
 ## STRUCTURE
 ```
-fuck-jev/
+mend/
 ├── PRD-jev-heal.md          # Product requirements, OKRs, and system boundaries
 ├── PLAN.md                  # 5-crate architecture, runtime protocol, and implementation roadmap
 ├── docs/agents/             # Agent skills contracts (issue tracker, triage labels, domain docs)
-└── crates/ (planned)        # 5-crate Rust workspace (core, capture, jev, reify, cli)
+└── crates/                  # 5-crate Rust workspace (core, capture, jev, reify, cli)
 ```
 
 ## WHERE TO LOOK

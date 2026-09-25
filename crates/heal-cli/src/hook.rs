@@ -1,107 +1,108 @@
 pub fn generate_shell_hook(shell: &str) -> String {
     match shell.to_lowercase().as_str() {
         "zsh" => r#"
-# jev-heal zsh integration
-_JEV_HEAL_LOG="${TMPDIR:-/tmp}/jev-heal-$USER-last.log"
+# mend zsh integration
+_MEND_LOG="${TMPDIR:-/tmp}/mend-$USER-last.log"
 
-_jev_heal_preexec() {
+_mend_preexec() {
     local first_word="${1%% *}"
-    if [[ "$first_word" != "fix" && "$first_word" != "fuck" && "$first_word" != "jev-heal" ]]; then
-        export _JEV_HEAL_LAST_CMD="$1"
-        # Truncate and open log output capture
-        : > "$_JEV_HEAL_LOG" 2>/dev/null
+    if [[ "$first_word" != "mend" && "$first_word" != "fix" && "$first_word" != "fuck" ]]; then
+        export _MEND_LAST_CMD="$1"
+        : > "$_MEND_LOG" 2>/dev/null
         exec 3>&2
-        exec 2> >(tee -a "$_JEV_HEAL_LOG" >&3)
+        exec 2> >(tee -a "$_MEND_LOG" >&3)
     fi
 }
 
-_jev_heal_precmd() {
+_mend_precmd() {
     local exit_code=$?
-    # Restore stderr if redirected
     if { true >&3; } 2>/dev/null; then
         exec 2>&3 3>&-
     fi
-    if [[ "$_JEV_HEAL_LAST_CMD" != "fix"* && "$_JEV_HEAL_LAST_CMD" != "fuck"* ]]; then
-        export _JEV_HEAL_LAST_EXIT=$exit_code
+    if [[ "$_MEND_LAST_CMD" != "mend"* && "$_MEND_LAST_CMD" != "fix"* && "$_MEND_LAST_CMD" != "fuck"* ]]; then
+        export _MEND_LAST_EXIT=$exit_code
     fi
 }
 
 autoload -Uz add-zsh-hook
-add-zsh-hook preexec _jev_heal_preexec
-add-zsh-hook precmd _jev_heal_precmd
+add-zsh-hook preexec _mend_preexec
+add-zsh-hook precmd _mend_precmd
 
-fuck() {
-    local cmd="$_JEV_HEAL_LAST_CMD"
+mend() {
+    local cmd="$_MEND_LAST_CMD"
     if [[ -z "$cmd" ]]; then
         cmd="$(fc -ln -1 2>/dev/null | sed 's/^[ ]*//')"
     fi
-    local code="${_JEV_HEAL_LAST_EXIT:-1}"
+    local code="${_MEND_LAST_EXIT:-1}"
     local err=""
-    if [[ -f "$_JEV_HEAL_LOG" ]]; then
-        err="$(tail -n 30 "$_JEV_HEAL_LOG" 2>/dev/null)"
+    if [[ -f "$_MEND_LOG" ]]; then
+        err="$(tail -n 30 "$_MEND_LOG" 2>/dev/null)"
     fi
-    jev-heal fix --command "$cmd" --exit-code "$code" --stderr "$err"
+    \mend fix --command "$cmd" --exit-code "$code" --stderr "$err"
 }
-alias fix=fuck
+alias fix=mend
+alias fuck=mend
 "#
         .to_string(),
 
         "bash" => r#"
-# jev-heal bash integration
-_JEV_HEAL_LOG="${TMPDIR:-/tmp}/jev-heal-$USER-last.log"
+# mend bash integration
+_MEND_LOG="${TMPDIR:-/tmp}/mend-$USER-last.log"
 
-_jev_heal_prompt_command() {
+_mend_prompt_command() {
     local exit_code=$?
     local last_hist=$(history 1 | sed 's/^[ ]*[0-9]*[ ]*//')
     local first_word="${last_hist%% *}"
-    if [[ "$first_word" != "fix" && "$first_word" != "fuck" && "$first_word" != "jev-heal" ]]; then
-        export _JEV_HEAL_LAST_EXIT=$exit_code
-        export _JEV_HEAL_LAST_CMD="$last_hist"
+    if [[ "$first_word" != "mend" && "$first_word" != "fix" && "$first_word" != "fuck" ]]; then
+        export _MEND_LAST_EXIT=$exit_code
+        export _MEND_LAST_CMD="$last_hist"
     fi
 }
 
-PROMPT_COMMAND="_jev_heal_prompt_command; $PROMPT_COMMAND"
+PROMPT_COMMAND="_mend_prompt_command; $PROMPT_COMMAND"
 
-fuck() {
-    local cmd="$_JEV_HEAL_LAST_CMD"
+mend() {
+    local cmd="$_MEND_LAST_CMD"
     if [[ -z "$cmd" ]]; then
         cmd="$(history 1 | sed 's/^[ ]*[0-9]*[ ]*//')"
     fi
-    local code="${_JEV_HEAL_LAST_EXIT:-1}"
+    local code="${_MEND_LAST_EXIT:-1}"
     local err=""
-    if [[ -f "$_JEV_HEAL_LOG" ]]; then
-        err="$(tail -n 30 "$_JEV_HEAL_LOG" 2>/dev/null)"
+    if [[ -f "$_MEND_LOG" ]]; then
+        err="$(tail -n 30 "$_MEND_LOG" 2>/dev/null)"
     fi
-    jev-heal fix --command "$cmd" --exit-code "$code" --stderr "$err"
+    \mend fix --command "$cmd" --exit-code "$code" --stderr "$err"
 }
-alias fix=fuck
+alias fix=mend
+alias fuck=mend
 "#
         .to_string(),
 
         "fish" => r#"
-# jev-heal fish integration
-set -g _JEV_HEAL_LOG "/tmp/jev-heal-$USER-last.log"
+# mend fish integration
+set -g _MEND_LOG "/tmp/mend-$USER-last.log"
 
-function _jev_heal_postexec --on-event fish_postexec
+function _mend_postexec --on-event fish_postexec
     set -l first_word (string split ' ' $argv[1])[1]
-    if test "$first_word" != "fix" -a "$first_word" != "fuck" -a "$first_word" != "jev-heal"
-        set -gx _JEV_HEAL_LAST_CMD $argv[1]
-        set -gx _JEV_HEAL_LAST_EXIT $status
+    if test "$first_word" != "mend" -a "$first_word" != "fix" -a "$first_word" != "fuck"
+        set -gx _MEND_LAST_CMD $argv[1]
+        set -gx _MEND_LAST_EXIT $status
     end
 end
 
-function fuck
-    set -l cmd "$_JEV_HEAL_LAST_CMD"
+function mend
+    set -l cmd "$_MEND_LAST_CMD"
     if test -z "$cmd"
         set cmd "$history[1]"
     end
     set -l err ""
-    if test -f "$_JEV_HEAL_LOG"
-        set err (tail -n 30 "$_JEV_HEAL_LOG" 2>/dev/null)
+    if test -f "$_MEND_LOG"
+        set err (tail -n 30 "$_MEND_LOG" 2>/dev/null)
     end
-    jev-heal fix --command "$cmd" --exit-code "$_JEV_HEAL_LAST_EXIT" --stderr "$err"
+    command mend fix --command "$cmd" --exit-code "$_MEND_LAST_EXIT" --stderr "$err"
 end
-alias fix=fuck
+alias fix=mend
+alias fuck=mend
 "#
         .to_string(),
 

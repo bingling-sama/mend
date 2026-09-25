@@ -20,9 +20,17 @@ impl Default for AppConfig {
 
 pub fn get_config_path() -> PathBuf {
     if let Ok(home) = env::var("HOME") {
-        PathBuf::from(home).join(".healc.json")
+        let mend_path = PathBuf::from(&home).join(".mend.json");
+        if mend_path.exists() {
+            return mend_path;
+        }
+        let legacy_path = PathBuf::from(&home).join(".healc.json");
+        if legacy_path.exists() {
+            return legacy_path;
+        }
+        mend_path
     } else {
-        PathBuf::from(".healc.json")
+        PathBuf::from(".mend.json")
     }
 }
 

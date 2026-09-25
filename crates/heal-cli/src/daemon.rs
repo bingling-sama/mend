@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 
-pub const DEFAULT_SOCKET_PATH: &str = "/tmp/jev-heal.sock";
+pub const DEFAULT_SOCKET_PATH: &str = "/tmp/mend.sock";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DaemonRequest {

@@ -6,7 +6,7 @@ license.workspace = true
 authors.workspace = true
 
 [[bin]]
-name = "jev-heal"
+name = "mend"
 path = "src/main.rs"
 
 [dependencies]
