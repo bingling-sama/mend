@@ -7,6 +7,28 @@ use std::path::PathBuf;
 pub struct AppConfig {
     pub jev_endpoint: String,
     pub jev_api_key: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub action_denylist: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action_allowlist: Option<Vec<String>>,
+}
+
+impl AppConfig {
+    pub fn parsed_denylist(&self) -> Vec<mend_core::ActionStrategy> {
+        self.action_denylist
+            .iter()
+            .filter_map(|s| s.parse().ok())
+            .filter(|a| *a != mend_core::ActionStrategy::Abort)
+            .collect()
+    }
+
+    pub fn parsed_allowlist(&self) -> Option<Vec<mend_core::ActionStrategy>> {
+        self.action_allowlist.as_ref().map(|list| {
+            list.iter()
+                .filter_map(|s| s.parse().ok())
+                .collect()
+        })
+    }
 }
 
 impl Default for AppConfig {
@@ -14,6 +36,8 @@ impl Default for AppConfig {
         Self {
             jev_endpoint: "https://api.typesafe.ai/v1/jev/evaluate".to_string(),
             jev_api_key: "".to_string(),
+            action_denylist: Vec::new(),
+            action_allowlist: None,
         }
     }
 }
@@ -65,5 +89,18 @@ mod tests {
         assert!(s.contains("jev_endpoint"));
         let de: AppConfig = serde_json::from_str(&s).unwrap();
         assert_eq!(de.jev_endpoint, cfg.jev_endpoint);
+    }
+
+    #[test]
+    fn test_app_config_policies() {
+        let mut cfg = AppConfig::default();
+        cfg.action_denylist = vec!["PREPEND_SUDO".to_string(), "INVALID_ACTION".to_string()];
+        cfg.action_allowlist = Some(vec!["GIT_SET_UPSTREAM".to_string()]);
+
+        let denylist = cfg.parsed_denylist();
+        assert_eq!(denylist, vec![mend_core::ActionStrategy::PrependSudo]);
+
+        let allowlist = cfg.parsed_allowlist().unwrap();
+        assert_eq!(allowlist, vec![mend_core::ActionStrategy::GitSetUpstream]);
     }
 }
