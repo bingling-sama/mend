@@ -41,7 +41,7 @@
 ### 1. 安装到 Cargo 二进制目录
 
 ```bash
-cargo install --path crates/heal-cli
+cargo install --path crates/mend-cli
 ```
 
 安装后将获得全局命令 `mend`。
@@ -121,7 +121,7 @@ mend exec -- touch /root/test.txt
 ```
 
 - 若初始命令返回 `Exit 0`：透明输出并原样退出。
-- 若失败且满足安全门禁：输出 `[auto-healed]` 标记，自动执行修复模板并回传自愈结果。
+- 若失败且满足安全门禁：输出 `[auto-mended]` 标记，自动执行修复模板并回传自愈结果。
 - 若自愈失败或触发安全门禁：立即熔断，原样返回退出码。
 
 ---
@@ -134,11 +134,11 @@ mend exec -- touch /root/test.txt
 mend/
 ├── Cargo.toml
 ├── crates/
-│   ├── heal-core/       # 领域核心实体：ExecutionState, DecisionPlan, ActionStrategy, Rule
-│   ├── heal-capture/    # 环形缓冲区、ANSI清洗、OSC 133 解析、PTY 运行包装器
-│   ├── heal-jev/        # Jev 客户端 SDK、动态 Criteria 路由、连接复用
-│   ├── heal-reify/      # 模板渲染替换、双模态 SafetyGate 门禁、规则库集
-│   └── heal-cli/        # 命令行入口、单行交互、Fast-Path 引擎、Shell Hook & Init
+│   ├── mend-core/       # 领域核心实体：ExecutionState, DecisionPlan, ActionStrategy, Rule
+│   ├── mend-capture/    # 环形缓冲区、ANSI清洗、OSC 133 解析、PTY 运行包装器
+│   ├── mend-jev/        # Jev 客户端 SDK、动态 Criteria 路由、连接复用
+│   ├── mend-reify/      # 模板渲染替换、双模态 SafetyGate 门禁、规则库集
+│   └── mend-cli/        # 命令行入口、单行交互、Fast-Path 引擎、Shell Hook & Init
 ```
 
 ---

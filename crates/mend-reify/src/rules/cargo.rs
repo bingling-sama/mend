@@ -1,4 +1,4 @@
-use heal_core::{ActionStrategy, ExecutionState, RemediationCandidate, Rule};
+use mend_core::{ActionStrategy, ExecutionState, RemediationCandidate, Rule};
 use crate::TemplateRenderer;
 
 /// Rule: cargo typo subcommand (e.g. cargo bulid -> cargo build)

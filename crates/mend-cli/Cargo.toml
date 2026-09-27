@@ -1,5 +1,5 @@
 [package]
-name = "heal-cli"
+name = "mend-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,10 +10,10 @@ name = "mend"
 path = "src/main.rs"
 
 [dependencies]
-heal-core = { workspace = true }
-heal-capture = { workspace = true }
-heal-jev = { workspace = true }
-heal-reify = { workspace = true }
+mend-core = { workspace = true }
+mend-capture = { workspace = true }
+mend-jev = { workspace = true }
+mend-reify = { workspace = true }
 
 clap = { workspace = true }
 crossterm = { workspace = true }

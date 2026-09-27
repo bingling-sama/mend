@@ -1,11 +1,11 @@
 一、 整体技术方案架构
-系统被设计为一个单二进制（Single Binary）的 Rust 应用程序（命名为 jev-heal），同时充当 人类交互 CLI 与 Agent 透明执行 Hook。
+系统被设计为一个单二进制（Single Binary）的 Rust 应用程序（命名为 mend），同时充当 人类交互 CLI 与 Agent 透明执行 Hook。
 
                                   [ 调用入口 ]
                    ┌───────────────────┴───────────────────┐
                    ▼                                       ▼
            【人类终端模式】                          【Agent Hook 模式】
-       eval $(jev-heal --hook)               jev-heal exec -- "cargo build"
+        eval $(mend --hook)                     mend exec -- "cargo build"
                    │                                       │
                    └───────────────────┬───────────────────┘
                                        ▼
@@ -94,14 +94,14 @@ Agent 模式：若 destructive_risk > 0.1 或 confidence < 0.92，立即熔断�
 三、 项目模块划分与 Rust Crate 依赖设计
 Plaintext
 
-jev-heal/
+mend/
 ├── Cargo.toml
 ├── crates/
-│ ├── heal-core/ # 核心领域模型：State, Decision, Rule, Engine
-│ ├── heal-capture/ # Shell 终端捕获、PTY 包装器、OSC133 解析
-│ ├── heal-jev/ # Jev 客户端 SDK、Schema 序列化、长连接传输
-│ ├── heal-reify/ # 模板映射、实体替换、安全检查门禁
-│ └── heal-cli/ # 命令行前端、TUI 交互 (ratatui)、Shell 钩子生成
+│ ├── mend-core/ # 核心领域模型：State, Decision, Rule, Engine
+│ ├── mend-capture/ # Shell 终端捕获、PTY 包装器、OSC133 解析
+│ ├── mend-jev/ # Jev 客户端 SDK、Schema 序列化、长连接传输
+│ ├── mend-reify/ # 模板映射、实体替换、安全检查门禁
+│ └── mend-cli/ # 命令行前端、TUI 交互 (ratatui)、Shell 钩子生成
 关键依赖选型 (Cargo.toml)
 网络与并发：tokio (全异步运行时), reqwest (启用 http2, rustls-tls 减小体积并加速握手), serde, serde_json。
 
@@ -110,8 +110,8 @@ jev-heal/
 匹配与算法：strsim (本地 Fast-path 的 Levenshtein 极速距离计算), regex (实体抽取)。
 
 四、 完整落地实现路线（Step-by-Step）
-步骤 1：搭建 Workspace 与数据契约定义 (heal-core)
-在 heal-core 中定义领域实体：
+步骤 1：搭建 Workspace 与数据契约定义 (mend-core)
+在 mend-core 中定义领域实体：
 
 ExecutionState: 包含命令拆解、执行路径、环境变量、过滤后的 stderr。
 
@@ -131,7 +131,7 @@ AptInstallPackage,
 PathCorrection,
 Abort,
 }
-步骤 2：实现零副作用上下文捕获 (heal-capture)
+步骤 2：实现零副作用上下文捕获 (mend-capture)
 实现 PTY 执行封装：
 编写 PtyRunner，在执行外部命令时接管 stdio，在内存中维护固定大小的环形缓冲区（Ring Buffer，如 64KB）。
 
@@ -148,7 +148,7 @@ Abort,
 
 检查命令存在性：若返回 127（Command not found），扫描 $PATH 缓存，使用 strsim::levenshtein 检索相似度最高的二进制文件，若距离 $\le 2$，直接在本地生成替换命令，跳过 Jev 调用。
 
-步骤 4：实现 Jev Client 通信层 (heal-jev)
+步骤 4：实现 Jev Client 通信层 (mend-jev)
 封装符合 TypeSafe Jev API 规范的 HTTP 客户端：
 
 初始化包含 Keep-Alive 的连接池。
@@ -161,7 +161,7 @@ Abort,
 
 实现对单次请求中多题目（Choice + Noul）的并行解码反序列化，提取置信度与评估分值。
 
-步骤 5：实现确定性模板组装与安全门禁 (heal-reify)
+步骤 5：实现确定性模板组装与安全门禁 (mend-reify)
 建立 ActionStrategy 到命令生成模板的映射表。
 
 注入从 ExecutionState 中抽取的实体字典，完成变量替换。
@@ -183,8 +183,8 @@ let max_risk = if is_agent { 0.10 } else { 0.40 };
     Ok(())
 
 }
-步骤 6：构建 CLI 交互层与 Agent Hook 模式 (heal-cli)
-构建 Agent 执行子命令 (jev-heal exec -- <CMD>)：
+步骤 6：构建 CLI 交互层与 Agent Hook 模式 (mend-cli)
+构建 Agent 执行子命令 (mend exec -- <CMD>)：
 
 使用 PtyRunner 启动目标子进程。
 
@@ -192,17 +192,17 @@ let max_risk = if is_agent { 0.10 } else { 0.40 };
 
 若子进程 Exit Code 非 0，拦截输出，同步进入 Jev 自愈流水线。
 
-校验通过后，自动在当前上下文中执行自愈后的命令一次；若自愈后成功，向 stdout 打印单行标记 [auto-healed] 并返回 0；若仍失败，彻底熔断并返回最终状态码。
+校验通过后，自动在当前上下文中执行自愈后的命令一次；若自愈后成功，向 stdout 打印单行标记 [auto-mended] 并返回 0；若仍失败，彻底熔断并返回最终状态码。
 
-构建人类交互命令 (jev-heal fix)：
+构建人类交互命令 (mend fix)：
 
 使用 ratatui 渲染微型行内选择框，高亮置信度最高的建议命令，支持回车执行、上下键翻阅、ESC 取消。
 
-输出 Shell 注入脚本 (jev-heal init zsh/bash)：
+输出 Shell 注入脚本 (mend init zsh/bash)：
 
 打印对应的 Shell 函数定义，挂载别名（如 fuck 或 fix）。
 
 步骤 7：性能压测与端到端调优
 冷启动控制：编译时开启 LTO（lto = "fat"），去除符号表（strip = true），将二进制体积控制在 5MB 以内。
 
-网络瓶颈优化：测量 heal-jev 的端到端往返耗时（RTT）。如果单次冷启动 TLS 耗时过高，在 CLI 层实现可选的 jev-heal daemon 模式，通过 Linux Abstract Domain Socket 进一步将端到端延迟死死压制在 100ms 左右。
+网络瓶颈优化：测量 mend-jev 的端到端往返耗时（RTT）。如果单次冷启动 TLS 耗时过高，在 CLI 层实现可选的 mend daemon 模式，通过 Linux Abstract Domain Socket 进一步将端到端延迟死死压制在 100ms 左右。

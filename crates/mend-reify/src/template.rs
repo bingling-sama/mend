@@ -1,4 +1,4 @@
-use heal_core::{ActionStrategy, ExecutionState, RemediationCandidate, SafetyError};
+use mend_core::{ActionStrategy, ExecutionState, RemediationCandidate, SafetyError};
 
 pub struct TemplateRenderer;
 

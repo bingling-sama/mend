@@ -1,4 +1,4 @@
-use heal_core::{ActionStrategy, ExecutionState, RemediationCandidate, Rule};
+use mend_core::{ActionStrategy, ExecutionState, RemediationCandidate, Rule};
 use crate::TemplateRenderer;
 
 /// Rule: Node package managers missing `run` before script (e.g. `pn dev` -> `pn run dev`)

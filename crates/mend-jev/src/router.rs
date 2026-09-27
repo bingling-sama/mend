@@ -1,4 +1,4 @@
-use heal_core::{ActionStrategy, DecisionPlan, ExecutionState, QuestionSpec};
+use mend_core::{ActionStrategy, DecisionPlan, ExecutionState, QuestionSpec};
 
 pub struct CriteriaRouter;
 

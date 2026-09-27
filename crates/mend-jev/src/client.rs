@@ -1,4 +1,4 @@
-use heal_core::{ActionStrategy, DecisionPlan, FailureReason, JevResponse};
+use mend_core::{ActionStrategy, DecisionPlan, FailureReason, JevResponse};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -85,7 +85,7 @@ impl JevClient {
                 .questions
                 .iter()
                 .map(|q| match q {
-                    heal_core::QuestionSpec::Choice {
+                    mend_core::QuestionSpec::Choice {
                         id,
                         prompt,
                         options,
@@ -97,7 +97,7 @@ impl JevClient {
                         min: None,
                         max: None,
                     },
-                    heal_core::QuestionSpec::Noul {
+                    mend_core::QuestionSpec::Noul {
                         id,
                         prompt,
                         min,

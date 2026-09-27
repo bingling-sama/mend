@@ -4,7 +4,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType},
     ExecutableCommand,
 };
-use heal_core::RemediationCandidate;
+use mend_core::RemediationCandidate;
 use std::io::{stdin, stdout, IsTerminal, Write};
 
 pub enum TuiSelection {

@@ -1,7 +1,7 @@
-use heal_capture::{sanitize_stderr, EntityExtractor};
-use heal_core::{ActionStrategy, ExecutionState};
-use heal_jev::CriteriaRouter;
-use heal_reify::{build_default_rule_registry, SafetyGate, TemplateRenderer};
+use mend_capture::{sanitize_stderr, EntityExtractor};
+use mend_core::{ActionStrategy, ExecutionState};
+use mend_jev::CriteriaRouter;
+use mend_reify::{build_default_rule_registry, SafetyGate, TemplateRenderer};
 
 #[test]
 fn test_end_to_end_git_upstream_pipeline() {

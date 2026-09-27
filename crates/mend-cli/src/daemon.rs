@@ -1,4 +1,4 @@
-use heal_core::{ExecutionState, RemediationCandidate};
+use mend_core::{ExecutionState, RemediationCandidate};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};

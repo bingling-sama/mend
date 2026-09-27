@@ -1,8 +1,8 @@
 use clap::{Parser, Subcommand};
-use heal_capture::{sanitize_stderr, EntityExtractor, PtyRunner};
-use heal_core::{ExecutionState, RemediationCandidate};
-use heal_jev::{CriteriaRouter, JevClient};
-use heal_reify::{SafetyGate, TemplateRenderer};
+use mend_capture::{sanitize_stderr, EntityExtractor, PtyRunner};
+use mend_core::{ExecutionState, RemediationCandidate};
+use mend_jev::{CriteriaRouter, JevClient};
+use mend_reify::{SafetyGate, TemplateRenderer};
 use std::env;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
@@ -237,7 +237,7 @@ async fn handle_exec(
                 return ExitCode::from(initial_run.exit_code as u8);
             }
 
-            eprintln!("[auto-healed] Retrying with: {}", cand.rendered_command);
+            eprintln!("[auto-mended] Retrying with: {}", cand.rendered_command);
 
             let retry_tokens: Vec<String> = cand
                 .rendered_command
@@ -254,7 +254,7 @@ async fn handle_exec(
             match pty_runner.run(retry_prog, retry_args, &[], None, true) {
                 Ok(retry_out) => {
                     if retry_out.exit_code == 0 {
-                        eprintln!("[auto-healed] Remediation successful.");
+                        eprintln!("[auto-mended] Remediation successful.");
                         ExitCode::SUCCESS
                     } else {
                         eprintln!(
@@ -345,7 +345,7 @@ async fn resolve_remediation(
     endpoint: &str,
     api_key: Option<&str>,
 ) -> Option<RemediationCandidate> {
-    if let Some(cand) = FastPathEngine::try_heal(state) {
+    if let Some(cand) = FastPathEngine::try_mend(state) {
         return Some(cand);
     }
 

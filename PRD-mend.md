@@ -1,7 +1,7 @@
-# Product Requirements Document (PRD): jev-heal
+# Product Requirements Document (PRD): mend
 
-**Document Name:** PRD-jev-heal  
-**Product Name:** jev-heal (Terminal Error Healing Engine)  
+**Document Name:** PRD-mend  
+**Product Name:** mend (Terminal Error Healing Engine)  
 **Status:** Draft  
 **Version:** 1.0.0  
 
@@ -9,7 +9,7 @@
 
 ## 1. Summary
 
-jev-heal is a fast command-line helper that detects terminal errors and fixes them safely. When a command fails for a human or an automated AI agent, jev-heal finds the right fix without secretly re-running commands or breaking systems. It provides single-key terminal fixes for developers and automatic, safe retries for AI agents.
+mend is a fast command-line helper that detects terminal errors and fixes them safely. When a command fails for a human or an automated AI agent, mend finds the right fix without secretly re-running commands or breaking systems. It provides single-key terminal fixes for developers and automatic, safe retries for AI agents.
 
 ---
 
@@ -47,23 +47,23 @@ With the TypeSafe Jev Engine, we no longer need to ask general large language mo
 
 ### 4.1 What is the Objective?
 
-Build a single binary application (`jev-heal`) that diagnoses and fixes failed shell commands in real time with zero dangerous re-runs, serving both interactive human developers and headless AI agents.
+Build a single binary application (`mend`) that diagnoses and fixes failed shell commands in real time with zero dangerous re-runs, serving both interactive human developers and headless AI agents.
 
 ### 4.2 Why It Matters
 
 - **Saves Developer Focus**: Engineers stay in their flow state instead of manually fixing repetitive typos and configuration mismatches.
-- **Enables Autonomous Execution**: AI agents can heal from common execution errors in a single step without hallucinating dangerous shell commands.
+- **Enables Autonomous Execution**: AI agents can mend from common execution errors in a single step without hallucinating dangerous shell commands.
 - **Guarantees System Safety**: By verifying risk scores and never generating open-ended shell code via LLMs, systems remain protected against destructive actions.
 
 ### 4.3 Strategic Alignment
 
-jev-heal supports our core mission to provide fast, rock-solid developer tools and reliable autonomous agent infrastructure.
+mend supports our core mission to provide fast, rock-solid developer tools and reliable autonomous agent infrastructure.
 
 ### 4.4 Key Results (SMART OKRs)
 
 - **KR 1 (Latency)**: Achieve p95 remediation response latency under 120 milliseconds for local fast-path fixes and under 250 milliseconds for cloud Jev evaluations.
 - **KR 2 (Safety)**: 0 incidents of unconfirmed destructive command executions across all runs.
-- **KR 3 (Remediation Accuracy)**: Reach an acceptance rate higher than 85% for human interactive suggestions and a first-time auto-heal pass rate higher than 90% for AI agent runs.
+- **KR 3 (Remediation Accuracy)**: Reach an acceptance rate higher than 85% for human interactive suggestions and a first-time auto-mend pass rate higher than 90% for AI agent runs.
 - **KR 4 (Binary Footprint)**: Keep the compiled binary footprint under 8 MB with zero external runtime dependencies.
 
 ---
@@ -82,7 +82,7 @@ jev-heal supports our core mission to provide fast, rock-solid developer tools a
 
 ### 5.2 Market Boundary
 
-jev-heal does not attempt to replace complex debugging tools, run static code analysis, or fix multi-file application source code. Its scope is strictly bounded to shell command execution errors and operational environment fixes.
+mend does not attempt to replace complex debugging tools, run static code analysis, or fix multi-file application source code. Its scope is strictly bounded to shell command execution errors and operational environment fixes.
 
 ---
 
@@ -102,7 +102,7 @@ jev-heal does not attempt to replace complex debugging tools, run static code an
 
 ### 6.3 Value Curve Comparison
 
-| Factor | Legacy Tools (thefuck) | Raw Cloud LLM CLI | jev-heal |
+| Factor | Legacy Tools (thefuck) | Raw Cloud LLM CLI | mend |
 | --- | --- | --- | --- |
 | Zero Side-Effect Capture | Poor (Re-runs commands) | Medium (Captures pipes) | Excellent (OSC 133 / PTY) |
 | Latency | Medium (300-800ms) | Slow (2000-5000ms) | Instant (<100ms Fast-Path) |
@@ -132,7 +132,7 @@ jev-heal does not attempt to replace complex debugging tools, run static code an
                  |
                  v
    +-------------------------------+
-   | jev-heal evaluates output     |
+   | mend evaluates output         |
    | - Fast-Path / Jev Classifier  |
    +-------------------------------+
                  |
@@ -144,7 +144,7 @@ jev-heal does not attempt to replace complex debugging tools, run static code an
 #### Flow B: Agent Hook Flow
 
 ```plaintext
-Agent executes: jev-heal exec -- "<target-command>"
+Agent executes: mend exec -- "<target-command>"
                  |
                  v
      Target command runs inside PTY
@@ -153,7 +153,7 @@ Agent executes: jev-heal exec -- "<target-command>"
         |                 |
      Exit 0            Exit != 0
         |                 |
-  Transparent exit    jev-heal intercepts stderr buffer
+  Transparent exit    mend intercepts stderr buffer
                           |
                           v
                  Is Confidence >= 0.92 AND Destructive Risk <= 0.10?
@@ -168,15 +168,15 @@ Agent executes: jev-heal exec -- "<target-command>"
         |             |
      Success        Failed
         |             |
-   Print [auto-healed] Return failure exit code
+   Print [auto-mended] Return failure exit code
    Exit 0
 ```
 
 ### 7.2 Key Features
 
 1. **Dual Execution Entry Points**:
-   - `eval $(jev-heal --hook)`: Injects shell integration for Zsh, Bash, and Fish for human usage.
-   - `jev-heal exec -- <CMD>`: Wraps sub-processes inside a clean pseudo-terminal (PTY) for automated agents.
+   - `eval $(mend --hook)`: Injects shell integration for Zsh, Bash, and Fish for human usage.
+   - `mend exec -- <CMD>`: Wraps sub-processes inside a clean pseudo-terminal (PTY) for automated agents.
 
 2. **Zero-Side-Effect Context Ingestion**:
    - In human mode, reads output boundaries via OSC 133 sequences (`\x1b]133;C` and `\x1b]133;D;<exit-code>`) from shell history or temp FIFO buffers.
@@ -207,11 +207,11 @@ Agent executes: jev-heal exec -- "<target-command>"
 
 - **Language**: 100% safe Rust.
 - **Workspace Layout**:
-  - `crates/heal-core`: Core data models (`ExecutionState`, `DecisionPlan`, `ActionStrategy`).
-  - `crates/heal-capture`: PTY runner, OSC 133 parser, ring buffer, ANSI sanitizer.
-  - `crates/heal-jev`: Jev client SDK, HTTP/2 connection pooling, criteria serialization.
-  - `crates/heal-reify`: Parameterized template rendering, entity substitution, safety verification gate.
-  - `crates/heal-cli`: Terminal user interface (`ratatui`, `crossterm`), command-line parser, shell hook generators.
+  - `crates/mend-core`: Core data models (`ExecutionState`, `DecisionPlan`, `ActionStrategy`).
+  - `crates/mend-capture`: PTY runner, OSC 133 parser, ring buffer, ANSI sanitizer.
+  - `crates/mend-jev`: Jev client SDK, HTTP/2 connection pooling, criteria serialization.
+  - `crates/mend-reify`: Parameterized template rendering, entity substitution, safety verification gate.
+  - `crates/mend-cli`: Terminal user interface (`ratatui`, `crossterm`), command-line parser, shell hook generators.
 - **Optimization**: Link-Time Optimization (`lto = "fat"`), symbol stripping (`strip = true`), minimal dependency graph.
 
 ### 7.4 Assumptions
@@ -229,13 +229,13 @@ Agent executes: jev-heal exec -- "<target-command>"
 - Scaffold Cargo workspace with all five core crates.
 - Implement PTY runner and ANSI sanitization pipeline.
 - Implement Tier 1 local fast-path engine (exit codes 126, 127, Levenshtein matching).
-- Deliver baseline CLI `jev-heal exec -- <CMD>` supporting local auto-fixes.
+- Deliver baseline CLI `mend exec -- <CMD>` supporting local auto-fixes.
 
 ### 8.2 Phase 2: Jev Cloud Integration & Safety Gate (Month 2)
 
-- Integrate `heal-jev` client with warm connection pooling.
+- Integrate `mend-jev` client with warm connection pooling.
 - Wire criteria routing for Git and common Unix tools.
-- Implement template rendering engine (`heal-reify`) and safety gate rules.
+- Implement template rendering engine (`mend-reify`) and safety gate rules.
 - Add headless agent circuit breaker and automated single-retry logic.
 
 ### 8.3 Phase 3: Human Terminal UX & Shell Integration (Month 3)
@@ -248,4 +248,4 @@ Agent executes: jev-heal exec -- "<target-command>"
 
 - Run end-to-end performance benchmarking and latency optimization.
 - Package single binaries for macOS (ARM64/x86_64) and Linux (glibc/musl).
-- Integrate jev-heal as the standard execution wrapper in major AI coding agent frameworks.
+- Integrate mend as the standard execution wrapper in major AI coding agent frameworks.

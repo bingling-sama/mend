@@ -1,11 +1,11 @@
 [package]
-name = "heal-core"
+name = "mend-reify"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
 [dependencies]
-serde = { workspace = true }
-serde_json = { workspace = true }
+mend-core = { workspace = true }
+regex = { workspace = true }
 thiserror = { workspace = true }

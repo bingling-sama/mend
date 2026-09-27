@@ -1,4 +1,4 @@
-use heal_core::{ActionStrategy, SafetyError};
+use mend_core::{ActionStrategy, SafetyError};
 
 pub struct SafetyGate;
 

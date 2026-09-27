@@ -1,11 +1,11 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/heal-core",
-    "crates/heal-capture",
-    "crates/heal-jev",
-    "crates/heal-reify",
-    "crates/heal-cli",
+    "crates/mend-core",
+    "crates/mend-capture",
+    "crates/mend-jev",
+    "crates/mend-reify",
+    "crates/mend-cli",
 ]
 
 [workspace.package]
@@ -16,10 +16,10 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/example/mend"
 
 [workspace.dependencies]
-heal-core = { path = "crates/heal-core" }
-heal-capture = { path = "crates/heal-capture" }
-heal-jev = { path = "crates/heal-jev" }
-heal-reify = { path = "crates/heal-reify" }
+mend-core = { path = "crates/mend-core" }
+mend-capture = { path = "crates/mend-capture" }
+mend-jev = { path = "crates/mend-jev" }
+mend-reify = { path = "crates/mend-reify" }
 
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }

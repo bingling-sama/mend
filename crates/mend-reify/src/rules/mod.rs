@@ -4,7 +4,7 @@ pub mod node;
 pub mod python;
 pub mod system;
 
-use heal_core::RuleRegistry;
+use mend_core::RuleRegistry;
 
 pub fn build_default_rule_registry() -> RuleRegistry {
     let mut registry = RuleRegistry::new();

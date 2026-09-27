@@ -1,5 +1,5 @@
-use heal_core::{ActionStrategy, ExecutionState, RemediationCandidate, RuleRegistry};
-use heal_reify::{build_default_rule_registry, TemplateRenderer};
+use mend_core::{ActionStrategy, ExecutionState, RemediationCandidate, RuleRegistry};
+use mend_reify::{build_default_rule_registry, TemplateRenderer};
 use std::collections::HashSet;
 use std::env;
 use std::fs;
@@ -10,7 +10,7 @@ static GLOBAL_RULES: OnceLock<RuleRegistry> = OnceLock::new();
 pub struct FastPathEngine;
 
 impl FastPathEngine {
-    pub fn try_heal(state: &mut ExecutionState) -> Option<RemediationCandidate> {
+    pub fn try_mend(state: &mut ExecutionState) -> Option<RemediationCandidate> {
         let registry = GLOBAL_RULES.get_or_init(build_default_rule_registry);
 
         // 1. Evaluate curated industrial rules (thefuck rule catalog)
@@ -115,7 +115,7 @@ mod tests {
     #[test]
     fn test_fast_path_permission_denied() {
         let mut state = ExecutionState::new("touch /root/foo", 126);
-        let cand = FastPathEngine::try_heal(&mut state);
+        let cand = FastPathEngine::try_mend(&mut state);
         assert!(cand.is_some());
         assert_eq!(cand.unwrap().rendered_command, "sudo touch /root/foo");
     }
@@ -129,7 +129,7 @@ mod tests {
         entities.insert("package_script".to_string(), "dev".to_string());
         state = state.with_entities(entities);
 
-        let cand = FastPathEngine::try_heal(&mut state);
+        let cand = FastPathEngine::try_mend(&mut state);
         assert!(cand.is_some());
         assert_eq!(cand.unwrap().rendered_command, "pn run dev");
     }
@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn test_fast_path_command_not_found() {
         let mut state = ExecutionState::new("gti status", 127);
-        let cand = FastPathEngine::try_heal(&mut state);
+        let cand = FastPathEngine::try_mend(&mut state);
         if let Some(c) = cand {
             assert!(c.rendered_command.contains("status"));
         }
