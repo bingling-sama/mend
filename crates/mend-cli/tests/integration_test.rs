@@ -77,7 +77,7 @@ fn test_end_to_end_thefuck_rules_catalog() {
 
 #[test]
 fn test_end_to_end_agent_safety_circuit_breaker() {
-    let state = ExecutionState::new("rm -rf /tmp/data", 1);
+    let _state = ExecutionState::new("rm -rf /tmp/data", 1);
     let confidence = 0.95;
     let high_destructive_risk = 0.35;
 

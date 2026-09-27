@@ -182,36 +182,11 @@ impl JevClient {
 }
 
 fn parse_failure_reason(s: &str) -> FailureReason {
-    match s {
-        "PERMISSION_DENIED" => FailureReason::PermissionDenied,
-        "COMMAND_NOT_FOUND" => FailureReason::CommandNotFound,
-        "GIT_NO_UPSTREAM" => FailureReason::GitNoUpstream,
-        "GIT_NON_FAST_FORWARD" => FailureReason::GitNonFastForward,
-        "GIT_UNCOMMITTED_CHANGES" => FailureReason::GitUncommittedChanges,
-        "MISSING_PACKAGE_OR_BINARY" => FailureReason::MissingPackageOrBinary,
-        "NO_SUCH_FILE_OR_DIRECTORY" => FailureReason::NoSuchFileOrDirectory,
-        "PERMISSION_NOT_EXECUTABLE" => FailureReason::PermissionNotExecutable,
-        "DAEMON_NOT_RUNNING" => FailureReason::DaemonNotRunning,
-        _ => FailureReason::Unknown,
-    }
+    s.parse().unwrap_or(FailureReason::Unknown)
 }
 
 fn parse_remediation_action(s: &str) -> ActionStrategy {
-    match s {
-        "PREPEND_SUDO" => ActionStrategy::PrependSudo,
-        "GIT_SET_UPSTREAM" => ActionStrategy::GitSetUpstream,
-        "GIT_PULL_REBASE" => ActionStrategy::GitPullRebase,
-        "GIT_STASH_POP" => ActionStrategy::GitStashPop,
-        "GIT_CHECKOUT_BRANCH" => ActionStrategy::GitCheckoutBranch,
-        "APT_INSTALL_PACKAGE" => ActionStrategy::AptInstallPackage,
-        "BREW_INSTALL_PACKAGE" => ActionStrategy::BrewInstallPackage,
-        "CARGO_INSTALL_PACKAGE" => ActionStrategy::CargoInstallPackage,
-        "PATH_CORRECTION" => ActionStrategy::PathCorrection,
-        "MAKE_DIRECTORY" => ActionStrategy::MakeDirectory,
-        "CHMOD_EXECUTABLE" => ActionStrategy::ChmodExecutable,
-        "DOCKER_START_DAEMON" => ActionStrategy::DockerStartDaemon,
-        _ => ActionStrategy::Abort,
-    }
+    s.parse().unwrap_or(ActionStrategy::Abort)
 }
 
 #[cfg(test)]
@@ -261,5 +236,23 @@ mod tests {
         assert_eq!(result.remediation_action, ActionStrategy::GitSetUpstream);
         assert_eq!(result.action_confidence, 0.96);
         assert_eq!(result.destructive_risk, 0.05);
+    }
+
+    #[test]
+    fn test_parse_remediation_action_all_variants() {
+        for action in ActionStrategy::ALL {
+            let parsed = parse_remediation_action(action.as_str());
+            assert_eq!(&parsed, action, "Failed for {}", action.as_str());
+        }
+        assert_eq!(parse_remediation_action("NON_EXISTENT"), ActionStrategy::Abort);
+    }
+
+    #[test]
+    fn test_parse_failure_reason_all_variants() {
+        for reason in FailureReason::ALL {
+            let parsed = parse_failure_reason(reason.as_str());
+            assert_eq!(&parsed, reason, "Failed for {}", reason.as_str());
+        }
+        assert_eq!(parse_failure_reason("NON_EXISTENT"), FailureReason::Unknown);
     }
 }
