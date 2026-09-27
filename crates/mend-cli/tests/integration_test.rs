@@ -87,3 +87,40 @@ fn test_end_to_end_agent_safety_circuit_breaker() {
     let res2 = SafetyGate::verify(&ActionStrategy::PrependSudo, high_destructive_risk, confidence, true);
     assert!(res2.is_err());
 }
+
+#[test]
+fn test_end_to_end_policy_and_telemetry_solution_space_pruning() {
+    use mend_core::QuestionSpec;
+
+    let state = ExecutionState::new("docker ps", 1)
+        .with_sanitized_lines(vec!["Cannot connect to the Docker daemon".into()]);
+
+    let base_plan = CriteriaRouter::build_decision_plan(&state);
+    if let QuestionSpec::Choice { id, options, .. } = &base_plan.questions[1] {
+        assert_eq!(id, "remediation_action");
+        assert!(options.contains(&"DOCKER_START_DAEMON".to_string()));
+        assert!(options.contains(&"PREPEND_SUDO".to_string()));
+    } else {
+        panic!("Expected Choice");
+    }
+
+    let router_denied = CriteriaRouter::with_policies(vec![ActionStrategy::PrependSudo], None);
+    let plan_denied = router_denied.plan(&state);
+    if let QuestionSpec::Choice { id, options, .. } = &plan_denied.questions[1] {
+        assert_eq!(id, "remediation_action");
+        assert!(options.contains(&"DOCKER_START_DAEMON".to_string()));
+        assert!(!options.contains(&"PREPEND_SUDO".to_string()));
+        assert!(options.contains(&"ABORT".to_string()));
+    } else {
+        panic!("Expected Choice");
+    }
+
+    let router_allowed = CriteriaRouter::with_policies(vec![], Some(vec![ActionStrategy::DockerStartDaemon]));
+    let plan_allowed = router_allowed.plan(&state);
+    if let QuestionSpec::Choice { id, options, .. } = &plan_allowed.questions[1] {
+        assert_eq!(id, "remediation_action");
+        assert_eq!(options, &vec!["DOCKER_START_DAEMON".to_string(), "ABORT".to_string()]);
+    } else {
+        panic!("Expected Choice");
+    }
+}

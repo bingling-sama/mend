@@ -13,11 +13,13 @@ pub mod config;
 pub mod daemon;
 pub mod fast_path;
 pub mod hook;
+pub mod telemetry;
 pub mod tui;
 
-use config::{get_config_path, load_or_init_config};
+use config::{get_config_path, load_or_init_config, AppConfig};
 use fast_path::FastPathEngine;
 use hook::generate_shell_hook;
+use telemetry::TelemetryCache;
 use tui::{run_interactive_picker, TuiSelection};
 
 #[derive(Parser, Debug)]
@@ -102,7 +104,7 @@ async fn main() -> ExitCode {
                 eprintln!("Usage: mend exec -- <COMMAND> [ARGS...]");
                 return ExitCode::from(1);
             }
-            handle_exec(cmd, &final_endpoint, final_api_key.as_deref()).await
+            handle_exec(cmd, &final_endpoint, final_api_key.as_deref(), &cfg).await
         }
         Some(Commands::Fix {
             command,
@@ -115,6 +117,7 @@ async fn main() -> ExitCode {
                 stderr,
                 &final_endpoint,
                 final_api_key.as_deref(),
+                &cfg,
             )
             .await
         }
@@ -194,6 +197,7 @@ async fn handle_exec(
     cmd_tokens: Vec<String>,
     endpoint: &str,
     api_key: Option<&str>,
+    cfg: &AppConfig,
 ) -> ExitCode {
     let full_command = cmd_tokens.join(" ");
     let prog = &cmd_tokens[0];
@@ -220,7 +224,7 @@ async fn handle_exec(
     let entities = extractor.extract(&full_command, &sanitized);
     state = state.with_entities(entities);
 
-    let remediation_candidate = resolve_remediation(&mut state, endpoint, api_key).await;
+    let remediation_candidate = resolve_remediation(&mut state, endpoint, api_key, cfg).await;
 
     match remediation_candidate {
         Some(cand) => {
@@ -255,17 +259,23 @@ async fn handle_exec(
                 Ok(retry_out) => {
                     if retry_out.exit_code == 0 {
                         eprintln!("[auto-mended] Remediation successful.");
+                        let mut cache = TelemetryCache::load();
+                        cache.record_success(&full_command, &cand.strategy);
                         ExitCode::SUCCESS
                     } else {
                         eprintln!(
                             "mend: Remediation retry failed with exit code {}",
                             retry_out.exit_code
                         );
+                        let mut cache = TelemetryCache::load();
+                        cache.record_failure(&full_command, &cand.strategy);
                         ExitCode::from(retry_out.exit_code as u8)
                     }
                 }
                 Err(e) => {
                     eprintln!("mend: Failed to execute remediation: {}", e);
+                    let mut cache = TelemetryCache::load();
+                    cache.record_failure(&full_command, &cand.strategy);
                     ExitCode::from(initial_run.exit_code as u8)
                 }
             }
@@ -280,6 +290,7 @@ async fn handle_fix(
     stderr_opt: Option<String>,
     endpoint: &str,
     api_key: Option<&str>,
+    cfg: &AppConfig,
 ) -> ExitCode {
     let command = command_opt.unwrap_or_else(|| {
         env::var("_MEND_LAST_CMD")
@@ -296,7 +307,7 @@ async fn handle_fix(
     let entities = extractor.extract(&command, &sanitized);
     state = state.with_entities(entities);
 
-    let candidate_opt = resolve_remediation(&mut state, endpoint, api_key).await;
+    let candidate_opt = resolve_remediation(&mut state, endpoint, api_key, cfg).await;
 
     if let Some(cand) = candidate_opt {
         if let Err(e) =
@@ -344,6 +355,7 @@ async fn resolve_remediation(
     state: &mut ExecutionState,
     endpoint: &str,
     api_key: Option<&str>,
+    cfg: &AppConfig,
 ) -> Option<RemediationCandidate> {
     if let Some(cand) = FastPathEngine::try_mend(state) {
         return Some(cand);
@@ -357,7 +369,16 @@ async fn resolve_remediation(
         return None;
     }
 
-    let plan = CriteriaRouter::build_decision_plan(state);
+    let mut denylist = cfg.parsed_denylist();
+    let telemetry = TelemetryCache::load();
+    for penalized in telemetry.get_penalized_actions(&state.command) {
+        if !denylist.contains(&penalized) {
+            denylist.push(penalized);
+        }
+    }
+
+    let router = CriteriaRouter::with_policies(denylist, cfg.parsed_allowlist());
+    let plan = router.plan(state);
     let client = JevClient::new(endpoint, api_key.map(String::from));
 
     match client.evaluate(&plan).await {
