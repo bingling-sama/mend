@@ -1,109 +1,83 @@
+use crate::provider::{
+    CargoCriteriaProvider, DomainCriteriaProvider, GitCriteriaProvider,
+    PackageManagerCriteriaProvider, PythonCriteriaProvider, SystemCliCriteriaProvider,
+};
 use mend_core::{ActionStrategy, DecisionPlan, ExecutionState, QuestionSpec};
 
-pub struct CriteriaRouter;
+pub struct CriteriaRouter {
+    providers: Vec<Box<dyn DomainCriteriaProvider>>,
+    denylist: Vec<ActionStrategy>,
+    allowlist: Option<Vec<ActionStrategy>>,
+}
+
+impl Default for CriteriaRouter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl CriteriaRouter {
-    pub fn build_decision_plan(state: &ExecutionState) -> DecisionPlan {
-        let first_cmd = state.argv.first().map(|s| s.as_str()).unwrap_or("");
-        let is_git = first_cmd == "git";
-        let is_pkg_mgr = matches!(first_cmd, "npm" | "pnpm" | "pn" | "yarn" | "bun");
-        let is_cargo = first_cmd == "cargo";
-        let is_python = matches!(first_cmd, "python" | "python3" | "pip");
+    pub fn new() -> Self {
+        Self {
+            providers: vec![
+                Box::new(GitCriteriaProvider),
+                Box::new(PackageManagerCriteriaProvider),
+                Box::new(CargoCriteriaProvider),
+                Box::new(PythonCriteriaProvider),
+                Box::new(SystemCliCriteriaProvider),
+            ],
+            denylist: Vec::new(),
+            allowlist: None,
+        }
+    }
 
-        let (domain, failure_reasons, remediation_actions) = if is_git {
-            (
-                "git_operations".to_string(),
-                vec![
-                    "GIT_NO_UPSTREAM".to_string(),
-                    "GIT_NON_FAST_FORWARD".to_string(),
-                    "GIT_UNCOMMITTED_CHANGES".to_string(),
-                    "SUBCOMMAND_NOT_FOUND".to_string(),
-                    "PERMISSION_DENIED".to_string(),
-                    "UNKNOWN".to_string(),
-                ],
-                vec![
-                    ActionStrategy::GitSetUpstream.as_str().to_string(),
-                    ActionStrategy::GitPullRebase.as_str().to_string(),
-                    ActionStrategy::GitStashPop.as_str().to_string(),
-                    ActionStrategy::SubcommandCorrection.as_str().to_string(),
-                    ActionStrategy::PrependSudo.as_str().to_string(),
-                    ActionStrategy::Abort.as_str().to_string(),
-                ],
-            )
-        } else if is_pkg_mgr {
-            (
-                "package_managers".to_string(),
-                vec![
-                    "PACKAGE_SCRIPT_NOT_FOUND".to_string(),
-                    "MISSING_PACKAGE_OR_BINARY".to_string(),
-                    "PERMISSION_DENIED".to_string(),
-                    "UNKNOWN".to_string(),
-                ],
-                vec![
-                    ActionStrategy::PnpmRunScript.as_str().to_string(),
-                    ActionStrategy::NpmRunScript.as_str().to_string(),
-                    ActionStrategy::YarnRunScript.as_str().to_string(),
-                    ActionStrategy::BunRunScript.as_str().to_string(),
-                    ActionStrategy::PrependSudo.as_str().to_string(),
-                    ActionStrategy::Abort.as_str().to_string(),
-                ],
-            )
-        } else if is_cargo {
-            (
-                "rust_cargo".to_string(),
-                vec![
-                    "SUBCOMMAND_NOT_FOUND".to_string(),
-                    "MISSING_PACKAGE_OR_BINARY".to_string(),
-                    "UNKNOWN".to_string(),
-                ],
-                vec![
-                    ActionStrategy::SubcommandCorrection.as_str().to_string(),
-                    ActionStrategy::CargoAddDependency.as_str().to_string(),
-                    ActionStrategy::CargoInstallPackage.as_str().to_string(),
-                    ActionStrategy::Abort.as_str().to_string(),
-                ],
-            )
-        } else if is_python {
-            (
-                "python_ecosystem".to_string(),
-                vec![
-                    "MISSING_PACKAGE_OR_BINARY".to_string(),
-                    "PERMISSION_DENIED".to_string(),
-                    "UNKNOWN".to_string(),
-                ],
-                vec![
-                    ActionStrategy::PipInstallPackage.as_str().to_string(),
-                    ActionStrategy::PrependSudo.as_str().to_string(),
-                    ActionStrategy::Abort.as_str().to_string(),
-                ],
-            )
-        } else {
-            (
-                "system_cli".to_string(),
-                vec![
-                    "PERMISSION_DENIED".to_string(),
-                    "COMMAND_NOT_FOUND".to_string(),
-                    "SUBCOMMAND_NOT_FOUND".to_string(),
-                    "MISSING_PACKAGE_OR_BINARY".to_string(),
-                    "NO_SUCH_FILE_OR_DIRECTORY".to_string(),
-                    "PERMISSION_NOT_EXECUTABLE".to_string(),
-                    "DAEMON_NOT_RUNNING".to_string(),
-                    "UNKNOWN".to_string(),
-                ],
-                vec![
-                    ActionStrategy::PrependSudo.as_str().to_string(),
-                    ActionStrategy::PathCorrection.as_str().to_string(),
-                    ActionStrategy::SubcommandCorrection.as_str().to_string(),
-                    ActionStrategy::AptInstallPackage.as_str().to_string(),
-                    ActionStrategy::BrewInstallPackage.as_str().to_string(),
-                    ActionStrategy::CargoInstallPackage.as_str().to_string(),
-                    ActionStrategy::MakeDirectory.as_str().to_string(),
-                    ActionStrategy::ChmodExecutable.as_str().to_string(),
-                    ActionStrategy::DockerStartDaemon.as_str().to_string(),
-                    ActionStrategy::Abort.as_str().to_string(),
-                ],
-            )
-        };
+    pub fn with_policies(
+        denylist: Vec<ActionStrategy>,
+        allowlist: Option<Vec<ActionStrategy>>,
+    ) -> Self {
+        let mut router = Self::new();
+        router.denylist = denylist;
+        router.allowlist = allowlist;
+        router
+    }
+
+    pub fn register_provider(&mut self, provider: Box<dyn DomainCriteriaProvider>) {
+        let insert_idx = self.providers.len().saturating_sub(1);
+        self.providers.insert(insert_idx, provider);
+    }
+
+    pub fn build_decision_plan(state: &ExecutionState) -> DecisionPlan {
+        Self::default().plan(state)
+    }
+
+    pub fn plan(&self, state: &ExecutionState) -> DecisionPlan {
+        let provider = self
+            .providers
+            .iter()
+            .find(|p| p.matches(state))
+            .expect("SystemCliCriteriaProvider matches all states as fallback");
+
+        let domain = provider.domain_name().to_string();
+        let reasons = provider.available_reasons(state);
+        let mut actions = provider.available_actions(state);
+
+        // Apply policy filtering
+        if let Some(allowlist) = &self.allowlist {
+            actions.retain(|a| *a == ActionStrategy::Abort || allowlist.contains(a));
+        }
+        if !self.denylist.is_empty() {
+            actions.retain(|a| *a == ActionStrategy::Abort || !self.denylist.contains(a));
+        }
+
+        // Always guarantee Abort is present
+        if !actions.contains(&ActionStrategy::Abort) {
+            actions.push(ActionStrategy::Abort);
+        }
+
+        let failure_reasons: Vec<String> =
+            reasons.into_iter().map(|r| r.as_str().to_string()).collect();
+        let remediation_actions: Vec<String> =
+            actions.into_iter().map(|a| a.as_str().to_string()).collect();
 
         let context_text = format!(
             "COMMAND: {}\nEXIT_CODE: {}\nCWD: {}\nSTDERR_TAIL:\n{}",
@@ -145,29 +119,138 @@ impl CriteriaRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
-    fn test_git_routing() {
+    fn test_git_routing_and_pruning() {
         let state = ExecutionState::new("git push origin master", 1)
             .with_sanitized_lines(vec!["fatal: current branch has no upstream".into()]);
         let plan = CriteriaRouter::build_decision_plan(&state);
         assert_eq!(plan.domain, "git_operations");
         assert_eq!(plan.questions.len(), 3);
+
+        if let QuestionSpec::Choice { id, options, .. } = &plan.questions[1] {
+            assert_eq!(id, "remediation_action");
+            assert!(options.contains(&"GIT_SET_UPSTREAM".to_string()));
+            assert!(options.contains(&"ABORT".to_string()));
+            // Pruned non-relevant git actions
+            assert!(!options.contains(&"GIT_PULL_REBASE".to_string()));
+        } else {
+            panic!("Expected Choice question");
+        }
     }
 
     #[test]
-    fn test_package_manager_routing() {
+    fn test_package_manager_routing_and_pruning() {
         let state = ExecutionState::new("pnpm dev", 1)
             .with_sanitized_lines(vec!["Command \"dev\" not found".into()]);
         let plan = CriteriaRouter::build_decision_plan(&state);
         assert_eq!(plan.domain, "package_managers");
+
+        if let QuestionSpec::Choice { id, options, .. } = &plan.questions[1] {
+            assert_eq!(id, "remediation_action");
+            assert!(options.contains(&"PNPM_RUN_SCRIPT".to_string()));
+            assert!(options.contains(&"ABORT".to_string()));
+            // Specific tool pruning: npm/yarn/bun should not appear for pnpm
+            assert!(!options.contains(&"NPM_RUN_SCRIPT".to_string()));
+            assert!(!options.contains(&"YARN_RUN_SCRIPT".to_string()));
+            assert!(!options.contains(&"BUN_RUN_SCRIPT".to_string()));
+        } else {
+            panic!("Expected Choice question");
+        }
     }
 
     #[test]
-    fn test_system_cli_routing() {
-        let state = ExecutionState::new("docker ps", 1)
-            .with_sanitized_lines(vec!["Cannot connect to Docker daemon".into()]);
+    fn test_system_cli_exit_126_pruning() {
+        let state = ExecutionState::new("/usr/local/bin/my-script", 126)
+            .with_sanitized_lines(vec!["bash: Permission denied".into()]);
         let plan = CriteriaRouter::build_decision_plan(&state);
         assert_eq!(plan.domain, "system_cli");
+
+        if let QuestionSpec::Choice { id, options, .. } = &plan.questions[1] {
+            assert_eq!(id, "remediation_action");
+            assert!(options.contains(&"PREPEND_SUDO".to_string()));
+            assert!(options.contains(&"CHMOD_EXECUTABLE".to_string()));
+            assert!(options.contains(&"ABORT".to_string()));
+            // Irrelevant actions pruned
+            assert!(!options.contains(&"DOCKER_START_DAEMON".to_string()));
+            assert!(!options.contains(&"BREW_INSTALL_PACKAGE".to_string()));
+        } else {
+            panic!("Expected Choice question");
+        }
+    }
+
+    #[test]
+    fn test_system_cli_docker_pruning() {
+        let state = ExecutionState::new("docker ps", 1)
+            .with_sanitized_lines(vec!["Cannot connect to the Docker daemon".into()]);
+        let plan = CriteriaRouter::build_decision_plan(&state);
+        assert_eq!(plan.domain, "system_cli");
+
+        if let QuestionSpec::Choice { id, options, .. } = &plan.questions[1] {
+            assert_eq!(id, "remediation_action");
+            assert!(options.contains(&"DOCKER_START_DAEMON".to_string()));
+            assert!(options.contains(&"PREPEND_SUDO".to_string()));
+            assert!(options.contains(&"ABORT".to_string()));
+            assert!(!options.contains(&"MAKE_DIRECTORY".to_string()));
+        } else {
+            panic!("Expected Choice question");
+        }
+    }
+
+    #[test]
+    fn test_policy_filtering_denylist() {
+        let state = ExecutionState::new("docker ps", 1)
+            .with_sanitized_lines(vec!["Cannot connect to the Docker daemon".into()]);
+        let router = CriteriaRouter::with_policies(vec![ActionStrategy::PrependSudo], None);
+        let plan = router.plan(&state);
+
+        if let QuestionSpec::Choice { id, options, .. } = &plan.questions[1] {
+            assert_eq!(id, "remediation_action");
+            assert!(!options.contains(&"PREPEND_SUDO".to_string()));
+            assert!(options.contains(&"DOCKER_START_DAEMON".to_string()));
+            assert!(options.contains(&"ABORT".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_policy_filtering_allowlist() {
+        let state = ExecutionState::new("docker ps", 1)
+            .with_sanitized_lines(vec!["Cannot connect to the Docker daemon".into()]);
+        let router =
+            CriteriaRouter::with_policies(vec![], Some(vec![ActionStrategy::DockerStartDaemon]));
+        let plan = router.plan(&state);
+
+        if let QuestionSpec::Choice { id, options, .. } = &plan.questions[1] {
+            assert_eq!(id, "remediation_action");
+            assert_eq!(
+                options,
+                &vec!["DOCKER_START_DAEMON".to_string(), "ABORT".to_string()]
+            );
+        }
+    }
+
+    #[test]
+    fn test_entity_gated_pruning_missing_subcommand() {
+        let state = ExecutionState::new("cargo unknowntrick", 1)
+            .with_sanitized_lines(vec!["error: no such subcommand `unknowntrick`".into()]);
+        let plan = CriteriaRouter::build_decision_plan(&state);
+        if let QuestionSpec::Choice { id, options, .. } = &plan.questions[1] {
+            assert_eq!(id, "remediation_action");
+            // Since no suggested_subcommand entity is present, SubcommandCorrection is pruned
+            assert!(!options.contains(&"SUBCOMMAND_CORRECTION".to_string()));
+        }
+
+        let mut entities = HashMap::new();
+        entities.insert(
+            "suggested_subcommand".to_string(),
+            "check".to_string(),
+        );
+        let state_with_entity = state.with_entities(entities);
+        let plan_with_entity = CriteriaRouter::build_decision_plan(&state_with_entity);
+        if let QuestionSpec::Choice { id, options, .. } = &plan_with_entity.questions[1] {
+            assert_eq!(id, "remediation_action");
+            assert!(options.contains(&"SUBCOMMAND_CORRECTION".to_string()));
+        }
     }
 }
