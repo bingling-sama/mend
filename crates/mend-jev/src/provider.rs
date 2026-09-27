@@ -206,10 +206,8 @@ impl DomainCriteriaProvider for CargoCriteriaProvider {
             actions.push(ActionStrategy::CargoInstallPackage);
         }
 
-        if actions.is_empty() {
-            if !stderr_lower.contains("no such subcommand") {
-                actions.push(ActionStrategy::CargoInstallPackage);
-            }
+        if actions.is_empty() && !stderr_lower.contains("no such subcommand") {
+            actions.push(ActionStrategy::CargoInstallPackage);
         }
 
         if !actions.contains(&ActionStrategy::Abort) {
@@ -257,11 +255,7 @@ impl DomainCriteriaProvider for PythonCriteriaProvider {
         if state.exit_code == 126 || stderr_lower.contains("permission denied") {
             actions.push(ActionStrategy::PrependSudo);
         } else {
-            if state.entities.contains_key("python_module") {
-                actions.push(ActionStrategy::PipInstallPackage);
-            } else {
-                actions.push(ActionStrategy::PipInstallPackage);
-            }
+            actions.push(ActionStrategy::PipInstallPackage);
             actions.push(ActionStrategy::PrependSudo);
         }
 

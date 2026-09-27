@@ -93,9 +93,11 @@ mod tests {
 
     #[test]
     fn test_app_config_policies() {
-        let mut cfg = AppConfig::default();
-        cfg.action_denylist = vec!["PREPEND_SUDO".to_string(), "INVALID_ACTION".to_string()];
-        cfg.action_allowlist = Some(vec!["GIT_SET_UPSTREAM".to_string()]);
+        let cfg = AppConfig {
+            action_denylist: vec!["PREPEND_SUDO".to_string(), "INVALID_ACTION".to_string()],
+            action_allowlist: Some(vec!["GIT_SET_UPSTREAM".to_string()]),
+            ..Default::default()
+        };
 
         let denylist = cfg.parsed_denylist();
         assert_eq!(denylist, vec![mend_core::ActionStrategy::PrependSudo]);

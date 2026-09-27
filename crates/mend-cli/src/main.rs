@@ -184,11 +184,7 @@ fn handle_init() -> ExitCode {
     }
 
     println!("\n\x1b[1;32m[完成]\x1b[0m 请在终端执行以下命令生效：");
-    if shell_name == "fish" {
-        println!("  source {}", rc_file.display());
-    } else {
-        println!("  source {}", rc_file.display());
-    }
+    println!("  source {}", rc_file.display());
 
     ExitCode::SUCCESS
 }

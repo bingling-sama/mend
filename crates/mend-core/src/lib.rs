@@ -108,7 +108,8 @@ impl std::str::FromStr for ActionStrategy {
             "MAKE_DIRECTORY" => Self::MakeDirectory,
             "CHMOD_EXECUTABLE" => Self::ChmodExecutable,
             "DOCKER_START_DAEMON" => Self::DockerStartDaemon,
-            "ABORT" | _ => Self::Abort,
+            "ABORT" => Self::Abort,
+            _ => Self::Abort,
         };
         Ok(res)
     }
@@ -183,7 +184,8 @@ impl std::str::FromStr for FailureReason {
             "NO_SUCH_FILE_OR_DIRECTORY" => Self::NoSuchFileOrDirectory,
             "PERMISSION_NOT_EXECUTABLE" => Self::PermissionNotExecutable,
             "DAEMON_NOT_RUNNING" => Self::DaemonNotRunning,
-            "UNKNOWN" | _ => Self::Unknown,
+            "UNKNOWN" => Self::Unknown,
+            _ => Self::Unknown,
         };
         Ok(res)
     }

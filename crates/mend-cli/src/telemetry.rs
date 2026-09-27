@@ -72,10 +72,10 @@ impl TelemetryCache {
         if let Some(entry) = self.failures.get(&key) {
             for (action_str, &count) in entry {
                 if count >= 1 {
-                    if let Ok(action) = action_str.parse() {
-                        if action != ActionStrategy::Abort && !penalized.contains(&action) {
-                            penalized.push(action);
-                        }
+                    let action: ActionStrategy =
+                        action_str.parse().unwrap_or(ActionStrategy::Abort);
+                    if action != ActionStrategy::Abort && !penalized.contains(&action) {
+                        penalized.push(action);
                     }
                 }
             }
