@@ -15,4 +15,5 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+mend-reify = { workspace = true }
 wiremock = { workspace = true }
