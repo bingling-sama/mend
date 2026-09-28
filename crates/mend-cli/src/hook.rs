@@ -29,16 +29,21 @@ add-zsh-hook preexec _mend_preexec
 add-zsh-hook precmd _mend_precmd
 
 mend() {
+    if [[ $# -gt 0 ]]; then
+        command mend "$@"
+        return $?
+    fi
     local cmd="$_MEND_LAST_CMD"
     if [[ -z "$cmd" ]]; then
-        cmd="$(fc -ln -1 2>/dev/null | sed 's/^[ ]*//')"
+        echo "mend: No previous command executed in this session." >&2
+        return 1
     fi
     local code="${_MEND_LAST_EXIT:-1}"
     local err=""
     if [[ -f "$_MEND_LOG" ]]; then
         err="$(tail -n 30 "$_MEND_LOG" 2>/dev/null)"
     fi
-    \mend fix --command "$cmd" --exit-code "$code" --stderr "$err"
+    command mend fix --command "$cmd" --exit-code "$code" --stderr "$err"
 }
 alias fix=mend
 alias fuck=mend
@@ -62,16 +67,21 @@ _mend_prompt_command() {
 PROMPT_COMMAND="_mend_prompt_command; $PROMPT_COMMAND"
 
 mend() {
+    if [[ $# -gt 0 ]]; then
+        command mend "$@"
+        return $?
+    fi
     local cmd="$_MEND_LAST_CMD"
     if [[ -z "$cmd" ]]; then
-        cmd="$(history 1 | sed 's/^[ ]*[0-9]*[ ]*//')"
+        echo "mend: No previous command executed in this session." >&2
+        return 1
     fi
     local code="${_MEND_LAST_EXIT:-1}"
     local err=""
     if [[ -f "$_MEND_LOG" ]]; then
         err="$(tail -n 30 "$_MEND_LOG" 2>/dev/null)"
     fi
-    \mend fix --command "$cmd" --exit-code "$code" --stderr "$err"
+    command mend fix --command "$cmd" --exit-code "$code" --stderr "$err"
 }
 alias fix=mend
 alias fuck=mend
@@ -91,9 +101,14 @@ function _mend_postexec --on-event fish_postexec
 end
 
 function mend
+    if test (count $argv) -gt 0
+        command mend $argv
+        return $status
+    end
     set -l cmd "$_MEND_LAST_CMD"
     if test -z "$cmd"
-        set cmd "$history[1]"
+        echo "mend: No previous command executed in this session." >&2
+        return 1
     end
     set -l err ""
     if test -f "$_MEND_LOG"
@@ -107,5 +122,39 @@ alias fuck=mend
         .to_string(),
 
         _ => format!("# Unsupported shell: {}", shell),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_zsh_hook_uses_command_mend() {
+        let hook = generate_shell_hook("zsh");
+        assert!(!hook.contains("\\mend"));
+        assert!(!hook.contains("fc -ln"));
+        assert!(hook.contains("command mend fix"));
+        assert!(hook.contains("command mend \"$@\""));
+        assert!(hook.contains("No previous command executed in this session"));
+    }
+
+    #[test]
+    fn test_bash_hook_uses_command_mend() {
+        let hook = generate_shell_hook("bash");
+        assert!(!hook.contains("\\mend"));
+        assert!(hook.contains("command mend fix"));
+        assert!(hook.contains("command mend \"$@\""));
+        assert!(hook.contains("No previous command executed in this session"));
+    }
+
+    #[test]
+    fn test_fish_hook_uses_command_mend() {
+        let hook = generate_shell_hook("fish");
+        assert!(!hook.contains("\\mend"));
+        assert!(!hook.contains("$history[1]"));
+        assert!(hook.contains("command mend fix"));
+        assert!(hook.contains("command mend $argv"));
+        assert!(hook.contains("No previous command executed in this session"));
     }
 }

@@ -302,8 +302,18 @@ async fn handle_fix(
             .unwrap_or_else(|_| "unknown_command".to_string())
     });
 
+    if command.trim().is_empty() || command == "unknown_command" {
+        eprintln!("mend: No previous command executed in this session.");
+        return ExitCode::from(1);
+    }
+
     let raw_stderr = stderr_opt.unwrap_or_default();
     let sanitized = sanitize_stderr(raw_stderr.as_bytes(), 12);
+
+    if exit_code == 0 && sanitized.is_empty() {
+        eprintln!("mend: Previous command succeeded (exit code 0). Nothing to mend.");
+        return ExitCode::SUCCESS;
+    }
 
     let mut state =
         ExecutionState::new(&command, exit_code).with_sanitized_lines(sanitized.clone());
