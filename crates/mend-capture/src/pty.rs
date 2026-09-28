@@ -140,7 +140,13 @@ mod tests {
     fn test_pty_runner_failure() {
         let runner = PtyRunner::new(1024);
         let output = runner
-            .run("sh", &["-c".to_string(), "exit 42".to_string()], &[], None, false)
+            .run(
+                "sh",
+                &["-c".to_string(), "exit 42".to_string()],
+                &[],
+                None,
+                false,
+            )
             .expect("Pty execution should succeed");
         assert_eq!(output.exit_code, 42);
     }

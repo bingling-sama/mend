@@ -17,7 +17,10 @@ impl TemplateRenderer {
                 } else {
                     format!("sudo {}", state.command)
                 };
-                (cmd, "Retry command with elevated sudo privileges".to_string())
+                (
+                    cmd,
+                    "Retry command with elevated sudo privileges".to_string(),
+                )
             }
             ActionStrategy::GitSetUpstream => {
                 let remote = state
@@ -145,16 +148,15 @@ impl TemplateRenderer {
                     .entities
                     .get("suggested_subcommand")
                     .cloned()
-                    .ok_or_else(|| SafetyError::MissingEntity("suggested_subcommand".to_string()))?;
+                    .ok_or_else(|| {
+                        SafetyError::MissingEntity("suggested_subcommand".to_string())
+                    })?;
 
                 let mut tokens = state.argv.clone();
                 if tokens.len() > 1 {
                     tokens[1] = suggested;
                 }
-                (
-                    tokens.join(" "),
-                    "Correct mistyped subcommand".to_string(),
-                )
+                (tokens.join(" "), "Correct mistyped subcommand".to_string())
             }
             ActionStrategy::PathCorrection => {
                 let corrected = state
@@ -258,7 +260,11 @@ impl TemplateRenderer {
     fn guess_git_branch(state: &ExecutionState) -> Option<String> {
         let text = format!("{}\n{}", state.command, state.sanitized_lines.join("\n"));
         for word in text.split_whitespace() {
-            if word.starts_with("feat") || word.starts_with("fix") || word == "main" || word == "master" {
+            if word.starts_with("feat")
+                || word.starts_with("fix")
+                || word == "main"
+                || word == "master"
+            {
                 return Some(word.trim_matches('\'').trim_matches('"').to_string());
             }
         }
@@ -278,10 +284,14 @@ mod tests {
         entities.insert("branch".to_string(), "feature-x".to_string());
 
         let state = ExecutionState::new("git push", 1).with_entities(entities);
-        let cand = TemplateRenderer::render(&ActionStrategy::GitSetUpstream, &state, 0.95, 0.05, false)
-            .expect("Render should succeed");
+        let cand =
+            TemplateRenderer::render(&ActionStrategy::GitSetUpstream, &state, 0.95, 0.05, false)
+                .expect("Render should succeed");
 
-        assert_eq!(cand.rendered_command, "git push --set-upstream origin feature-x");
+        assert_eq!(
+            cand.rendered_command,
+            "git push --set-upstream origin feature-x"
+        );
         assert_eq!(cand.confidence, 0.95);
     }
 
@@ -290,8 +300,9 @@ mod tests {
         let mut entities = HashMap::new();
         entities.insert("package_script".to_string(), "dev".to_string());
         let state = ExecutionState::new("pn dev", 1).with_entities(entities);
-        let cand = TemplateRenderer::render(&ActionStrategy::PnpmRunScript, &state, 0.98, 0.01, true)
-            .expect("Render should succeed");
+        let cand =
+            TemplateRenderer::render(&ActionStrategy::PnpmRunScript, &state, 0.98, 0.01, true)
+                .expect("Render should succeed");
         assert_eq!(cand.rendered_command, "pn run dev");
     }
 
@@ -308,8 +319,9 @@ mod tests {
         let mut entities = HashMap::new();
         entities.insert("suggested_binary".to_string(), "git".to_string());
         let state = ExecutionState::new("gti status", 127).with_entities(entities);
-        let cand = TemplateRenderer::render(&ActionStrategy::PathCorrection, &state, 0.99, 0.01, true)
-            .expect("Render should succeed");
+        let cand =
+            TemplateRenderer::render(&ActionStrategy::PathCorrection, &state, 0.99, 0.01, true)
+                .expect("Render should succeed");
         assert_eq!(cand.rendered_command, "git status");
     }
 }

@@ -183,7 +183,10 @@ impl DomainCriteriaProvider for CargoCriteriaProvider {
             || stderr_lower.contains("unresolved import")
             || state.entities.contains_key("package")
         {
-            vec![FailureReason::MissingPackageOrBinary, FailureReason::Unknown]
+            vec![
+                FailureReason::MissingPackageOrBinary,
+                FailureReason::Unknown,
+            ]
         } else {
             vec![
                 FailureReason::SubcommandNotFound,
@@ -238,7 +241,10 @@ impl DomainCriteriaProvider for PythonCriteriaProvider {
         } else if stderr_lower.contains("no module named")
             || state.entities.contains_key("python_module")
         {
-            vec![FailureReason::MissingPackageOrBinary, FailureReason::Unknown]
+            vec![
+                FailureReason::MissingPackageOrBinary,
+                FailureReason::Unknown,
+            ]
         } else {
             vec![
                 FailureReason::MissingPackageOrBinary,
@@ -374,10 +380,7 @@ impl DomainCriteriaProvider for SystemCliCriteriaProvider {
 fn has_git_branch_hint(state: &ExecutionState) -> bool {
     let text = format!("{}\n{}", state.command, state.sanitized_lines.join("\n"));
     for word in text.split_whitespace() {
-        if word.starts_with("feat")
-            || word.starts_with("fix")
-            || word == "main"
-            || word == "master"
+        if word.starts_with("feat") || word.starts_with("fix") || word == "main" || word == "master"
         {
             return true;
         }

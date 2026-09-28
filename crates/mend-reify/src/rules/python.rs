@@ -1,5 +1,5 @@
-use mend_core::{ActionStrategy, ExecutionState, RemediationCandidate, Rule};
 use crate::TemplateRenderer;
+use mend_core::{ActionStrategy, ExecutionState, RemediationCandidate, Rule};
 
 /// Rule: python missing module -> pip install <module>
 pub struct PythonMissingModuleRule;

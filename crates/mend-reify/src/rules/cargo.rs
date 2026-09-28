@@ -1,5 +1,5 @@
-use mend_core::{ActionStrategy, ExecutionState, RemediationCandidate, Rule};
 use crate::TemplateRenderer;
+use mend_core::{ActionStrategy, ExecutionState, RemediationCandidate, Rule};
 
 /// Rule: cargo typo subcommand (e.g. cargo bulid -> cargo build)
 pub struct CargoSubcommandTypoRule;
@@ -15,6 +15,13 @@ impl Rule for CargoSubcommandTypoRule {
     }
 
     fn produce_remediation(&self, state: &ExecutionState) -> Option<RemediationCandidate> {
-        TemplateRenderer::render(&ActionStrategy::SubcommandCorrection, state, 0.98, 0.01, true).ok()
+        TemplateRenderer::render(
+            &ActionStrategy::SubcommandCorrection,
+            state,
+            0.98,
+            0.01,
+            true,
+        )
+        .ok()
     }
 }

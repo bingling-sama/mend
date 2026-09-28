@@ -65,7 +65,8 @@ pub fn run_interactive_picker(
                     break;
                 }
                 KeyCode::Enter => {
-                    chosen = TuiSelection::Execute(candidates[selected_idx].rendered_command.clone());
+                    chosen =
+                        TuiSelection::Execute(candidates[selected_idx].rendered_command.clone());
                     break;
                 }
                 KeyCode::Up => {
@@ -98,18 +99,19 @@ pub fn run_interactive_picker(
 fn run_high_risk_prompt(
     candidate: &RemediationCandidate,
 ) -> Result<TuiSelection, Box<dyn std::error::Error>> {
-    eprintln!("\x1b[1;31m==================== HIGH RISK REMEDIATION WARNING ====================\x1b[0m");
     eprintln!(
-        "\x1b[1;31mAction: {}\x1b[0m",
-        candidate.strategy.as_str()
+        "\x1b[1;31m==================== HIGH RISK REMEDIATION WARNING ====================\x1b[0m"
     );
+    eprintln!("\x1b[1;31mAction: {}\x1b[0m", candidate.strategy.as_str());
     eprintln!("\x1b[1;33mCommand: {}\x1b[0m", candidate.rendered_command);
     eprintln!(
         "\x1b[1;31mDestructive Risk: {:.2} (Threshold > 0.30 requires explicit confirmation)\x1b[0m",
         candidate.destructive_risk
     );
     eprintln!("\x1b[1;31mExplanation: {}\x1b[0m", candidate.explanation);
-    eprintln!("\x1b[1;31m========================================================================\x1b[0m");
+    eprintln!(
+        "\x1b[1;31m========================================================================\x1b[0m"
+    );
     eprint!("Type '\x1b[1;32myes\x1b[0m' to proceed and execute, or anything else to abort: ");
     stdout().flush()?;
 

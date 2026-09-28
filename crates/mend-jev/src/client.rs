@@ -244,7 +244,10 @@ mod tests {
             let parsed = parse_remediation_action(action.as_str());
             assert_eq!(&parsed, action, "Failed for {}", action.as_str());
         }
-        assert_eq!(parse_remediation_action("NON_EXISTENT"), ActionStrategy::Abort);
+        assert_eq!(
+            parse_remediation_action("NON_EXISTENT"),
+            ActionStrategy::Abort
+        );
     }
 
     #[test]

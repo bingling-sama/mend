@@ -1,5 +1,5 @@
-use mend_core::{ActionStrategy, ExecutionState, RemediationCandidate, Rule};
 use crate::TemplateRenderer;
+use mend_core::{ActionStrategy, ExecutionState, RemediationCandidate, Rule};
 
 /// Rule: git push with no upstream -> git push --set-upstream origin <branch>
 pub struct GitSetUpstreamRule;
@@ -61,6 +61,13 @@ impl Rule for GitSubcommandTypoRule {
     }
 
     fn produce_remediation(&self, state: &ExecutionState) -> Option<RemediationCandidate> {
-        TemplateRenderer::render(&ActionStrategy::SubcommandCorrection, state, 0.97, 0.01, true).ok()
+        TemplateRenderer::render(
+            &ActionStrategy::SubcommandCorrection,
+            state,
+            0.97,
+            0.01,
+            true,
+        )
+        .ok()
     }
 }

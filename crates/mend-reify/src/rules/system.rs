@@ -1,5 +1,5 @@
-use mend_core::{ActionStrategy, ExecutionState, RemediationCandidate, Rule};
 use crate::TemplateRenderer;
+use mend_core::{ActionStrategy, ExecutionState, RemediationCandidate, Rule};
 
 /// Rule: permission denied -> prepend sudo
 pub struct SudoRule;
@@ -36,7 +36,10 @@ impl Rule for MkdirRule {
         let first = state.argv.first().map(|s| s.as_str()).unwrap_or("");
         (first == "cd" || first == "cat" || first == "touch" || first == "cp")
             && state.entities.contains_key("path")
-            && state.sanitized_lines.iter().any(|l| l.contains("No such file or directory"))
+            && state
+                .sanitized_lines
+                .iter()
+                .any(|l| l.contains("No such file or directory"))
     }
 
     fn produce_remediation(&self, state: &ExecutionState) -> Option<RemediationCandidate> {

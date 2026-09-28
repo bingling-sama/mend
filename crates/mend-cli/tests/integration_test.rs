@@ -13,7 +13,10 @@ fn test_end_to_end_git_upstream_pipeline() {
     let extractor = EntityExtractor::new();
     let entities = extractor.extract("git push", &sanitized);
     assert_eq!(entities.get("remote").map(|s| s.as_str()), Some("origin"));
-    assert_eq!(entities.get("branch").map(|s| s.as_str()), Some("feat-awesome"));
+    assert_eq!(
+        entities.get("branch").map(|s| s.as_str()),
+        Some("feat-awesome")
+    );
 
     let state = ExecutionState::new("git push", 128)
         .with_sanitized_lines(sanitized)
@@ -25,12 +28,27 @@ fn test_end_to_end_git_upstream_pipeline() {
     let confidence = 0.96;
     let destructive_risk = 0.05;
 
-    assert!(SafetyGate::verify(&ActionStrategy::GitSetUpstream, destructive_risk, confidence, true).is_ok());
+    assert!(SafetyGate::verify(
+        &ActionStrategy::GitSetUpstream,
+        destructive_risk,
+        confidence,
+        true
+    )
+    .is_ok());
 
-    let candidate = TemplateRenderer::render(&ActionStrategy::GitSetUpstream, &state, confidence, destructive_risk, false)
-        .expect("Reification succeeds");
+    let candidate = TemplateRenderer::render(
+        &ActionStrategy::GitSetUpstream,
+        &state,
+        confidence,
+        destructive_risk,
+        false,
+    )
+    .expect("Reification succeeds");
 
-    assert_eq!(candidate.rendered_command, "git push --set-upstream origin feat-awesome");
+    assert_eq!(
+        candidate.rendered_command,
+        "git push --set-upstream origin feat-awesome"
+    );
 }
 
 #[test]
@@ -39,7 +57,8 @@ fn test_end_to_end_thefuck_rules_catalog() {
     let extractor = EntityExtractor::new();
 
     // 1. PNPM missing run rule
-    let pnpm_err = vec!["[ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL] Command \"dev\" not found".to_string()];
+    let pnpm_err =
+        vec!["[ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL] Command \"dev\" not found".to_string()];
     let entities = extractor.extract("pn dev", &pnpm_err);
     let state = ExecutionState::new("pn dev", 1)
         .with_sanitized_lines(pnpm_err)
@@ -48,12 +67,15 @@ fn test_end_to_end_thefuck_rules_catalog() {
     assert_eq!(cand.rendered_command, "pn run dev");
 
     // 2. Git Subcommand typo
-    let git_err = vec!["git: 'brnach' is not a git command. The most similar command is branch".to_string()];
+    let git_err =
+        vec!["git: 'brnach' is not a git command. The most similar command is branch".to_string()];
     let entities = extractor.extract("git brnach", &git_err);
     let state = ExecutionState::new("git brnach", 1)
         .with_sanitized_lines(git_err)
         .with_entities(entities);
-    let cand = registry.evaluate(&state).expect("Git subcommand typo matches");
+    let cand = registry
+        .evaluate(&state)
+        .expect("Git subcommand typo matches");
     assert_eq!(cand.rendered_command, "git branch");
 
     // 3. Cargo Subcommand typo
@@ -62,7 +84,9 @@ fn test_end_to_end_thefuck_rules_catalog() {
     let state = ExecutionState::new("cargo bulid", 101)
         .with_sanitized_lines(cargo_err)
         .with_entities(entities);
-    let cand = registry.evaluate(&state).expect("Cargo subcommand typo matches");
+    let cand = registry
+        .evaluate(&state)
+        .expect("Cargo subcommand typo matches");
     assert_eq!(cand.rendered_command, "cargo build");
 
     // 4. Python module missing
@@ -71,7 +95,9 @@ fn test_end_to_end_thefuck_rules_catalog() {
     let state = ExecutionState::new("python main.py", 1)
         .with_sanitized_lines(py_err)
         .with_entities(entities);
-    let cand = registry.evaluate(&state).expect("Python module missing matches");
+    let cand = registry
+        .evaluate(&state)
+        .expect("Python module missing matches");
     assert_eq!(cand.rendered_command, "pip install fastapi");
 }
 
@@ -81,10 +107,20 @@ fn test_end_to_end_agent_safety_circuit_breaker() {
     let confidence = 0.95;
     let high_destructive_risk = 0.35;
 
-    let res = SafetyGate::verify(&ActionStrategy::Abort, high_destructive_risk, confidence, true);
+    let res = SafetyGate::verify(
+        &ActionStrategy::Abort,
+        high_destructive_risk,
+        confidence,
+        true,
+    );
     assert!(res.is_err());
 
-    let res2 = SafetyGate::verify(&ActionStrategy::PrependSudo, high_destructive_risk, confidence, true);
+    let res2 = SafetyGate::verify(
+        &ActionStrategy::PrependSudo,
+        high_destructive_risk,
+        confidence,
+        true,
+    );
     assert!(res2.is_err());
 }
 
@@ -115,11 +151,15 @@ fn test_end_to_end_policy_and_telemetry_solution_space_pruning() {
         panic!("Expected Choice");
     }
 
-    let router_allowed = CriteriaRouter::with_policies(vec![], Some(vec![ActionStrategy::DockerStartDaemon]));
+    let router_allowed =
+        CriteriaRouter::with_policies(vec![], Some(vec![ActionStrategy::DockerStartDaemon]));
     let plan_allowed = router_allowed.plan(&state);
     if let QuestionSpec::Choice { id, options, .. } = &plan_allowed.questions[1] {
         assert_eq!(id, "remediation_action");
-        assert_eq!(options, &vec!["DOCKER_START_DAEMON".to_string(), "ABORT".to_string()]);
+        assert_eq!(
+            options,
+            &vec!["DOCKER_START_DAEMON".to_string(), "ABORT".to_string()]
+        );
     } else {
         panic!("Expected Choice");
     }

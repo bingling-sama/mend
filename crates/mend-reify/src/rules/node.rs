@@ -1,5 +1,5 @@
-use mend_core::{ActionStrategy, ExecutionState, RemediationCandidate, Rule};
 use crate::TemplateRenderer;
+use mend_core::{ActionStrategy, ExecutionState, RemediationCandidate, Rule};
 
 /// Rule: Node package managers missing `run` before script (e.g. `pn dev` -> `pn run dev`)
 pub struct PnpmMissingRunRule;
@@ -55,9 +55,10 @@ impl Rule for YarnMissingRunRule {
     fn matches(&self, state: &ExecutionState) -> bool {
         let first = state.argv.first().map(|s| s.as_str()).unwrap_or("");
         first == "yarn"
-            && state.sanitized_lines.iter().any(|l| {
-                l.contains("error Command") && l.contains("not found")
-            })
+            && state
+                .sanitized_lines
+                .iter()
+                .any(|l| l.contains("error Command") && l.contains("not found"))
     }
 
     fn produce_remediation(&self, state: &ExecutionState) -> Option<RemediationCandidate> {

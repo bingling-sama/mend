@@ -238,9 +238,7 @@ mod tests {
     #[test]
     fn test_extract_pnpm_missing_script() {
         let extractor = EntityExtractor::new();
-        let stderr = vec![
-            "[ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL] Command \"dev\" not found".into(),
-        ];
+        let stderr = vec!["[ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL] Command \"dev\" not found".into()];
         let entities = extractor.extract("pn dev", &stderr);
         assert_eq!(
             entities.get("package_script").map(|s| s.as_str()),
@@ -251,9 +249,7 @@ mod tests {
     #[test]
     fn test_extract_python_missing_module() {
         let extractor = EntityExtractor::new();
-        let stderr = vec![
-            "ModuleNotFoundError: No module named 'requests'".into(),
-        ];
+        let stderr = vec!["ModuleNotFoundError: No module named 'requests'".into()];
         let entities = extractor.extract("python main.py", &stderr);
         assert_eq!(
             entities.get("python_module").map(|s| s.as_str()),

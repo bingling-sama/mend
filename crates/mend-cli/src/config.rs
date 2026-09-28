@@ -23,11 +23,9 @@ impl AppConfig {
     }
 
     pub fn parsed_allowlist(&self) -> Option<Vec<mend_core::ActionStrategy>> {
-        self.action_allowlist.as_ref().map(|list| {
-            list.iter()
-                .filter_map(|s| s.parse().ok())
-                .collect()
-        })
+        self.action_allowlist
+            .as_ref()
+            .map(|list| list.iter().filter_map(|s| s.parse().ok()).collect())
     }
 }
 

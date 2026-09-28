@@ -74,10 +74,14 @@ impl CriteriaRouter {
             actions.push(ActionStrategy::Abort);
         }
 
-        let failure_reasons: Vec<String> =
-            reasons.into_iter().map(|r| r.as_str().to_string()).collect();
-        let remediation_actions: Vec<String> =
-            actions.into_iter().map(|a| a.as_str().to_string()).collect();
+        let failure_reasons: Vec<String> = reasons
+            .into_iter()
+            .map(|r| r.as_str().to_string())
+            .collect();
+        let remediation_actions: Vec<String> = actions
+            .into_iter()
+            .map(|a| a.as_str().to_string())
+            .collect();
 
         let context_text = format!(
             "COMMAND: {}\nEXIT_CODE: {}\nCWD: {}\nSTDERR_TAIL:\n{}",
@@ -242,10 +246,7 @@ mod tests {
         }
 
         let mut entities = HashMap::new();
-        entities.insert(
-            "suggested_subcommand".to_string(),
-            "check".to_string(),
-        );
+        entities.insert("suggested_subcommand".to_string(), "check".to_string());
         let state_with_entity = state.with_entities(entities);
         let plan_with_entity = CriteriaRouter::build_decision_plan(&state_with_entity);
         if let QuestionSpec::Choice { id, options, .. } = &plan_with_entity.questions[1] {

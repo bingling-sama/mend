@@ -19,9 +19,11 @@ impl FastPathEngine {
         }
 
         // 2. Binary Command typo correction (Levenshtein against $PATH binaries)
-        let first_cmd_exists = state.argv.first().map(|cmd| {
-            Self::command_exists_in_path(cmd)
-        }).unwrap_or(false);
+        let first_cmd_exists = state
+            .argv
+            .first()
+            .map(|cmd| Self::command_exists_in_path(cmd))
+            .unwrap_or(false);
 
         let is_command_not_found = state.exit_code == 127
             || !first_cmd_exists
@@ -84,14 +86,20 @@ impl FastPathEngine {
                     let dist = strsim::levenshtein(target, &name);
                     if dist <= max_distance {
                         let len_diff = (name.len() as isize - target.len() as isize).unsigned_abs();
-                        let char_overlap = name.chars().filter(|c| target_chars.contains(c)).count();
+                        let char_overlap =
+                            name.chars().filter(|c| target_chars.contains(c)).count();
                         let prefix_match = if name.starts_with(&target[..1.min(target.len())]) {
                             1
                         } else {
                             0
                         };
 
-                        candidates.push((name.to_string(), dist, len_diff, prefix_match * 10 + char_overlap));
+                        candidates.push((
+                            name.to_string(),
+                            dist,
+                            len_diff,
+                            prefix_match * 10 + char_overlap,
+                        ));
                     }
                 }
             }

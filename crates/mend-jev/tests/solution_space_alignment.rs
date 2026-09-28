@@ -21,7 +21,11 @@ fn test_router_solution_space_all_options_valid() {
         for question in plan.questions {
             match question {
                 QuestionSpec::Choice { id, options, .. } => {
-                    assert!(!options.is_empty(), "Options should not be empty for question {}", id);
+                    assert!(
+                        !options.is_empty(),
+                        "Options should not be empty for question {}",
+                        id
+                    );
                     if id == "failure_reason" {
                         for opt in &options {
                             let parsed: FailureReason = opt.parse().expect("Valid parse");

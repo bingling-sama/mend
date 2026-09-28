@@ -33,7 +33,10 @@ impl UdsClient {
         Self::new(DEFAULT_SOCKET_PATH)
     }
 
-    pub async fn request(&self, req: &DaemonRequest) -> Result<DaemonResponse, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn request(
+        &self,
+        req: &DaemonRequest,
+    ) -> Result<DaemonResponse, Box<dyn std::error::Error + Send + Sync>> {
         let mut stream = UnixStream::connect(&self.socket_path).await?;
         let payload = serde_json::to_vec(req)?;
         let len = payload.len() as u32;

@@ -77,9 +77,7 @@ async fn main() -> ExitCode {
         );
     }
 
-    let final_endpoint = cli
-        .jev_endpoint
-        .unwrap_or_else(|| cfg.jev_endpoint.clone());
+    let final_endpoint = cli.jev_endpoint.unwrap_or_else(|| cfg.jev_endpoint.clone());
     let final_api_key = cli.jev_api_key.or_else(|| {
         if cfg.jev_api_key.trim().is_empty() {
             None
@@ -147,7 +145,10 @@ fn handle_init() -> ExitCode {
 
     println!("\x1b[1;32m=== mend 终端环境初始化 (Init) ===\x1b[0m");
     println!("检测到当前系统 Shell: \x1b[1;34m{}\x1b[0m", shell_name);
-    println!("配置文件路径: \x1b[1;34m{}\x1b[0m", get_config_path().display());
+    println!(
+        "配置文件路径: \x1b[1;34m{}\x1b[0m",
+        get_config_path().display()
+    );
     println!("Shell 注入目标文件: \x1b[1;34m{}\x1b[0m", rc_file.display());
 
     let hook_line = match shell_name {
@@ -164,12 +165,19 @@ fn handle_init() -> ExitCode {
     };
 
     if already_configured {
-        println!("\x1b[1;33m[已存在]\x1b[0m {} 中已包含 mend 相关钩子配置，无需重复写入。", rc_file.display());
+        println!(
+            "\x1b[1;33m[已存在]\x1b[0m {} 中已包含 mend 相关钩子配置，无需重复写入。",
+            rc_file.display()
+        );
     } else {
         let mut file = match OpenOptions::new().create(true).append(true).open(&rc_file) {
             Ok(f) => f,
             Err(e) => {
-                eprintln!("\x1b[1;31m[错误]\x1b[0m 无法写入配置文件 {}: {}", rc_file.display(), e);
+                eprintln!(
+                    "\x1b[1;31m[错误]\x1b[0m 无法写入配置文件 {}: {}",
+                    rc_file.display(),
+                    e
+                );
                 return ExitCode::from(1);
             }
         };
@@ -179,7 +187,10 @@ fn handle_init() -> ExitCode {
             eprintln!("\x1b[1;31m[错误]\x1b[0m 写入失败: {}", e);
             return ExitCode::from(1);
         }
-        println!("\x1b[1;32m[成功]\x1b[0m 已成功向 {} 写入挂载脚本：", rc_file.display());
+        println!(
+            "\x1b[1;32m[成功]\x1b[0m 已成功向 {} 写入挂载脚本：",
+            rc_file.display()
+        );
         println!("  \x1b[1;36m{}\x1b[0m", hook_line);
     }
 
@@ -224,12 +235,9 @@ async fn handle_exec(
 
     match remediation_candidate {
         Some(cand) => {
-            if let Err(safety_err) = SafetyGate::verify(
-                &cand.strategy,
-                cand.destructive_risk,
-                cand.confidence,
-                true,
-            ) {
+            if let Err(safety_err) =
+                SafetyGate::verify(&cand.strategy, cand.destructive_risk, cand.confidence, true)
+            {
                 eprintln!(
                     "mend: circuit breaker triggered for agent safety: {}",
                     safety_err
@@ -297,8 +305,8 @@ async fn handle_fix(
     let raw_stderr = stderr_opt.unwrap_or_default();
     let sanitized = sanitize_stderr(raw_stderr.as_bytes(), 12);
 
-    let mut state = ExecutionState::new(&command, exit_code)
-        .with_sanitized_lines(sanitized.clone());
+    let mut state =
+        ExecutionState::new(&command, exit_code).with_sanitized_lines(sanitized.clone());
     let extractor = EntityExtractor::new();
     let entities = extractor.extract(&command, &sanitized);
     state = state.with_entities(entities);
@@ -306,9 +314,12 @@ async fn handle_fix(
     let candidate_opt = resolve_remediation(&mut state, endpoint, api_key, cfg).await;
 
     if let Some(cand) = candidate_opt {
-        if let Err(e) =
-            SafetyGate::verify(&cand.strategy, cand.destructive_risk, cand.confidence, false)
-        {
+        if let Err(e) = SafetyGate::verify(
+            &cand.strategy,
+            cand.destructive_risk,
+            cand.confidence,
+            false,
+        ) {
             eprintln!(
                 "\x1b[31mmend: Cannot suggest action due to safety threshold: {}\x1b[0m",
                 e
