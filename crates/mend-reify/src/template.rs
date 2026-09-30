@@ -163,8 +163,11 @@ impl TemplateRenderer {
                     .entities
                     .get("suggested_binary")
                     .cloned()
-                    .or_else(|| state.entities.get("missing_command").cloned())
                     .ok_or_else(|| SafetyError::MissingEntity("suggested_binary".to_string()))?;
+
+                if state.argv.first().map(|s| s.as_str()) == Some(&corrected) {
+                    return Err(SafetyError::Aborted(ActionStrategy::PathCorrection));
+                }
 
                 let mut tokens = state.argv.clone();
                 if !tokens.is_empty() {
@@ -247,6 +250,12 @@ impl TemplateRenderer {
             }
         };
 
+        let explanation = if !is_fast_path {
+            format!("Jev recommends you: {}", explanation)
+        } else {
+            explanation
+        };
+
         Ok(RemediationCandidate {
             strategy: strategy.clone(),
             rendered_command,
@@ -293,6 +302,10 @@ mod tests {
             "git push --set-upstream origin feature-x"
         );
         assert_eq!(cand.confidence, 0.95);
+        assert_eq!(
+            cand.explanation,
+            "Jev recommends you: Set upstream tracking to origin/feature-x"
+        );
     }
 
     #[test]

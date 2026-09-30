@@ -72,9 +72,11 @@ async fn main() -> ExitCode {
             "\x1b[1;36m[mend]\x1b[0m 首次运行检测：已自动生成配置文件至 \x1b[1;33m{}\x1b[0m",
             get_config_path().display()
         );
-        eprintln!(
-            "\x1b[1;36m[mend]\x1b[0m 如需启用云端复杂自愈模型，请编辑该文件填写 \x1b[1;32m\"jev_api_key\"\x1b[0m。"
-        );
+        if cfg.jev_api_key.trim().is_empty() {
+            eprintln!(
+                "\x1b[1;36m[mend]\x1b[0m 如需启用云端复杂自愈模型，请编辑该文件填写 \x1b[1;32m\"jev_api_key\"\x1b[0m。"
+            );
+        }
     }
 
     let final_endpoint = cli.jev_endpoint.unwrap_or_else(|| cfg.jev_endpoint.clone());

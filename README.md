@@ -30,7 +30,7 @@
   - 基于编译期正则的参数实体抽取（git remote/branch、package 名、path 等）。
   - 支持长连接 / UDS Daemon 模式，降低评估往返耗时。
 - **自动配置文件初始化与 Shell 引导**：
-  - 自动检测并生成 `~/.mend.json` 配置文件。
+  - 自动检测并生成 `~/.mend.jsonc` 配置文件（支持注释与松散语法）。
   - 提供 `mend init` 一键自动挂载到当前使用 Shell（Zsh / Bash / Fish）。
 - **轻量单二进制**：采用全静态链接与 LTO fat 优化，编译后单一二进制小于 4 MB。
 
@@ -63,22 +63,24 @@ source ~/.zshrc    # 若使用 Zsh
 
 ---
 
-## Jev 决策引擎配置 (`~/.mend.json`)
+## Jev 决策引擎配置 (`~/.mend.jsonc`)
 
 当错误无法被 Tier 1 本地快速路径拦截时（例如复杂的 Git 冲突、非简单拼写的参数丢失），`mend` 会向 TypeSafe Jev 决策服务发起离散状态评估。
 
 ### 自动生成与读取
 
-首次运行 `mend` 时，程序会在你的主目录下自动生成 `~/.mend.json`：
+首次运行 `mend` 时，程序会在你的主目录下自动生成 `~/.mend.jsonc`：
 
-```json
+```jsonc
 {
-  "jev_endpoint": "https://api.typesafe.ai/v1/jev/evaluate",
+  // TypeSafe Jev Cloud Evaluation Endpoint
+  "jev_endpoint": "https://api.typesafe.ai/v1/systemone",
+  // Fill in your Jev API key to enable Tier 2 self-healing
   "jev_api_key": ""
 }
 ```
 
-- 若要在遇到复杂错误时启用云端 Jev 自愈诊断，只需在 `~/.mend.json` 中填入你的 API Key 即可。
+- 若要在遇到复杂错误时启用云端 Jev 自愈诊断，只需在 `~/.mend.jsonc` 中填入你的 API Key 即可。
 - 如果本地快速路径未命中，且未在配置文件中配置 `jev_api_key`，程序会在终端打印明晰的 Warning 提示。
 
 ### 覆盖优先级
@@ -86,7 +88,7 @@ source ~/.zshrc    # 若使用 Zsh
 配置生效优先级如下：
 1. **CLI 参数**（最高）：`--jev-endpoint` / `--jev-api-key`
 2. **环境变量**：`JEV_ENDPOINT` / `JEV_API_KEY`
-3. **配置文件**：`~/.mend.json`（默认）
+3. **配置文件**：`~/.mend.jsonc`（默认）
 
 ---
 

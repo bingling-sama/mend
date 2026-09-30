@@ -24,7 +24,31 @@ impl Rule for SudoRule {
     }
 }
 
-/// Rule: missing directory -> mkdir -p <path>
+pub struct DockerDaemonRule;
+
+impl Rule for DockerDaemonRule {
+    fn name(&self) -> &'static str {
+        "docker_start_daemon"
+    }
+
+    fn matches(&self, state: &ExecutionState) -> bool {
+        let is_docker = state.argv.first().map(|s| s.as_str()) == Some("docker")
+            || state.argv.first().map(|s| s.as_str()) == Some("docker-compose");
+        is_docker
+            && state.sanitized_lines.iter().any(|l| {
+                let lower = l.to_lowercase();
+                lower.contains("cannot connect to the docker daemon")
+                    || lower.contains("docker daemon is not running")
+                    || lower.contains("failed to connect to the docker api")
+                    || (lower.contains("docker.sock") && lower.contains("connect"))
+            })
+    }
+
+    fn produce_remediation(&self, state: &ExecutionState) -> Option<RemediationCandidate> {
+        TemplateRenderer::render(&ActionStrategy::DockerStartDaemon, state, 0.98, 0.05, true).ok()
+    }
+}
+
 pub struct MkdirRule;
 
 impl Rule for MkdirRule {

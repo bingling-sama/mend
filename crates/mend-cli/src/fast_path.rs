@@ -8,22 +8,121 @@ use std::sync::OnceLock;
 static GLOBAL_RULES: OnceLock<RuleRegistry> = OnceLock::new();
 
 pub const WELL_KNOWN_COMMANDS: &[&str] = &[
-    "docker", "docker-compose", "podman", "kubectl", "helm", "minikube", "kind", "k9s", "vagrant", "container",
-    "git", "gh", "glab", "svn", "hg",
-    "claude", "opencode", "codex", "gemini",
-    "cargo", "rustc", "rustup", "rustfmt", "clippy",
-    "node", "nodejs", "npm", "npx", "pnpm", "pnpx", "yarn", "bun", "bunx", "deno",
-    "vite", "next", "turbo", "webpack", "tsc", "eslint", "prettier",
-    "python", "python3", "pip", "pip3", "poetry", "uv", "pytest", "conda", "pdm", "pipenv", "tox",
-    "go", "gofmt",
-    "make", "cmake", "ninja", "gcc", "g++", "clang", "clang++", "gdb", "lldb",
-    "java", "javac", "mvn", "gradle", "kotlinc", "scala",
-    "terraform", "tofu", "ansible", "aws", "gcloud", "az", "pulumi",
-    "curl", "wget", "ssh", "scp", "rsync", "tar", "unzip", "gzip", "zip",
-    "grep", "sed", "awk", "find", "cat", "chmod", "chown", "sudo", "su",
-    "tmux", "screen", "htop", "btop", "top", "vim", "nvim", "nano", "code",
-    "zsh", "bash", "fish", "sh",
-    "brew", "apt", "apt-get", "yum", "dnf", "pacman", "apk", "zypper",
+    "docker",
+    "docker-compose",
+    "podman",
+    "kubectl",
+    "helm",
+    "minikube",
+    "kind",
+    "k9s",
+    "vagrant",
+    "container",
+    "git",
+    "gh",
+    "glab",
+    "svn",
+    "hg",
+    "claude",
+    "opencode",
+    "codex",
+    "gemini",
+    "cargo",
+    "rustc",
+    "rustup",
+    "rustfmt",
+    "clippy",
+    "node",
+    "nodejs",
+    "npm",
+    "npx",
+    "pnpm",
+    "pnpx",
+    "yarn",
+    "bun",
+    "bunx",
+    "deno",
+    "vite",
+    "next",
+    "turbo",
+    "webpack",
+    "tsc",
+    "eslint",
+    "prettier",
+    "python",
+    "python3",
+    "pip",
+    "pip3",
+    "poetry",
+    "uv",
+    "pytest",
+    "conda",
+    "pdm",
+    "pipenv",
+    "tox",
+    "go",
+    "gofmt",
+    "make",
+    "cmake",
+    "ninja",
+    "gcc",
+    "g++",
+    "clang",
+    "clang++",
+    "gdb",
+    "lldb",
+    "java",
+    "javac",
+    "mvn",
+    "gradle",
+    "kotlinc",
+    "scala",
+    "terraform",
+    "tofu",
+    "ansible",
+    "aws",
+    "gcloud",
+    "az",
+    "pulumi",
+    "curl",
+    "wget",
+    "ssh",
+    "scp",
+    "rsync",
+    "tar",
+    "unzip",
+    "gzip",
+    "zip",
+    "grep",
+    "sed",
+    "awk",
+    "find",
+    "cat",
+    "chmod",
+    "chown",
+    "sudo",
+    "su",
+    "tmux",
+    "screen",
+    "htop",
+    "btop",
+    "top",
+    "vim",
+    "nvim",
+    "nano",
+    "code",
+    "zsh",
+    "bash",
+    "fish",
+    "sh",
+    "brew",
+    "apt",
+    "apt-get",
+    "yum",
+    "dnf",
+    "pacman",
+    "apk",
+    "zypper",
 ];
 
 pub struct FastPathEngine;
@@ -53,17 +152,19 @@ impl FastPathEngine {
             if let Some(first_cmd) = state.argv.first().cloned() {
                 if !first_cmd_exists {
                     if let Some(closest) = Self::find_closest_path_binary(&first_cmd, 2) {
-                        state
-                            .entities
-                            .insert("suggested_binary".to_string(), closest);
-                        if let Ok(cand) = TemplateRenderer::render(
-                            &ActionStrategy::PathCorrection,
-                            state,
-                            0.98,
-                            0.02,
-                            true,
-                        ) {
-                            return Some(cand);
+                        if closest != first_cmd {
+                            state
+                                .entities
+                                .insert("suggested_binary".to_string(), closest);
+                            if let Ok(cand) = TemplateRenderer::render(
+                                &ActionStrategy::PathCorrection,
+                                state,
+                                0.98,
+                                0.02,
+                                true,
+                            ) {
+                                return Some(cand);
+                            }
                         }
                     }
                 }
@@ -133,7 +234,7 @@ impl FastPathEngine {
                 for entry in entries.flatten() {
                     let file_name = entry.file_name();
                     let name = file_name.to_string_lossy();
-                    if name.starts_with('.') || !seen.insert(name.to_string()) {
+                    if name.starts_with('.') || name == target || !seen.insert(name.to_string()) {
                         continue;
                     }
 
@@ -161,15 +262,17 @@ impl FastPathEngine {
         }
 
         for &well_known in WELL_KNOWN_COMMANDS {
-            if !seen.insert(well_known.to_string()) {
+            if well_known == target || !seen.insert(well_known.to_string()) {
                 continue;
             }
 
             let dist = strsim::levenshtein(target, well_known);
             if dist <= effective_max {
                 let len_diff = (well_known.len() as isize - target.len() as isize).unsigned_abs();
-                let char_overlap =
-                    well_known.chars().filter(|c| target_chars.contains(c)).count();
+                let char_overlap = well_known
+                    .chars()
+                    .filter(|c| target_chars.contains(c))
+                    .count();
                 let prefix_match = if well_known.starts_with(&target[..1.min(target.len())]) {
                     1
                 } else {
@@ -239,5 +342,14 @@ mod tests {
         let cand = FastPathEngine::try_mend(&mut state);
         assert!(cand.is_some());
         assert_eq!(cand.unwrap().rendered_command, "docker ps");
+    }
+
+    #[test]
+    fn test_fast_path_uninstalled_command_does_not_suggest_self() {
+        let mut state = ExecutionState::new("docker ps", 127);
+        let cand = FastPathEngine::try_mend(&mut state);
+        if let Some(c) = cand {
+            assert_ne!(c.rendered_command, "docker ps");
+        }
     }
 }

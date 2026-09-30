@@ -26,7 +26,12 @@ pub fn run_interactive_picker(
 
     if !stdout().is_terminal() || !stdin().is_terminal() {
         let cand = &candidates[0];
-        eprintln!("\x1b[1;32m{}\x1b[0m", cand.rendered_command);
+        let prefix = if !cand.is_fast_path {
+            "Jev recommends you: "
+        } else {
+            ""
+        };
+        eprintln!("{}\x1b[1;32m{}\x1b[0m", prefix, cand.rendered_command);
         return Ok(TuiSelection::Execute(cand.rendered_command.clone()));
     }
 
@@ -48,9 +53,15 @@ pub fn run_interactive_picker(
             "[enter/ctrl+c]"
         };
 
+        let prefix = if !cand.is_fast_path {
+            "Jev recommends you: "
+        } else {
+            ""
+        };
+
         print!(
-            "\x1b[1;32m{}\x1b[0m \x1b[1;33m{}\x1b[0m",
-            cand.rendered_command, prompt_nav
+            "{}\x1b[1;32m{}\x1b[0m \x1b[1;33m{}\x1b[0m",
+            prefix, cand.rendered_command, prompt_nav
         );
         out.flush()?;
 
@@ -99,11 +110,19 @@ pub fn run_interactive_picker(
 fn run_high_risk_prompt(
     candidate: &RemediationCandidate,
 ) -> Result<TuiSelection, Box<dyn std::error::Error>> {
+    let prefix = if !candidate.is_fast_path {
+        "Jev recommends you: "
+    } else {
+        ""
+    };
     eprintln!(
         "\x1b[1;31m==================== HIGH RISK REMEDIATION WARNING ====================\x1b[0m"
     );
     eprintln!("\x1b[1;31mAction: {}\x1b[0m", candidate.strategy.as_str());
-    eprintln!("\x1b[1;33mCommand: {}\x1b[0m", candidate.rendered_command);
+    eprintln!(
+        "\x1b[1;33mCommand: {}{}\x1b[0m",
+        prefix, candidate.rendered_command
+    );
     eprintln!(
         "\x1b[1;31mDestructive Risk: {:.2} (Threshold > 0.30 requires explicit confirmation)\x1b[0m",
         candidate.destructive_risk

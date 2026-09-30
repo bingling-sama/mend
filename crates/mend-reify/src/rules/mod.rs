@@ -11,6 +11,7 @@ pub fn build_default_rule_registry() -> RuleRegistry {
 
     // 1. System & Permissions
     registry.register(Box::new(system::SudoRule));
+    registry.register(Box::new(system::DockerDaemonRule));
     registry.register(Box::new(system::MkdirRule));
 
     // 2. Node & Web package managers

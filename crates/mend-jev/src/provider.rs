@@ -287,6 +287,15 @@ impl DomainCriteriaProvider for SystemCliCriteriaProvider {
 
     fn available_reasons(&self, state: &ExecutionState) -> Vec<FailureReason> {
         let stderr_lower = state.sanitized_lines.join("\n").to_lowercase();
+        let cmd_lower = state.command.to_lowercase();
+
+        let is_docker_daemon_error = (cmd_lower.contains("docker")
+            || stderr_lower.contains("docker daemon")
+            || stderr_lower.contains("cannot connect to the docker")
+            || stderr_lower.contains("failed to connect to the docker")
+            || stderr_lower.contains("docker.sock"))
+            && state.exit_code != 127
+            && !stderr_lower.contains("command not found");
 
         if state.exit_code == 126 || stderr_lower.contains("permission denied") {
             vec![
@@ -294,6 +303,8 @@ impl DomainCriteriaProvider for SystemCliCriteriaProvider {
                 FailureReason::PermissionNotExecutable,
                 FailureReason::Unknown,
             ]
+        } else if is_docker_daemon_error {
+            vec![FailureReason::DaemonNotRunning, FailureReason::Unknown]
         } else if state.exit_code == 127 || stderr_lower.contains("command not found") {
             vec![
                 FailureReason::CommandNotFound,
@@ -302,10 +313,6 @@ impl DomainCriteriaProvider for SystemCliCriteriaProvider {
             ]
         } else if stderr_lower.contains("no such file or directory") {
             vec![FailureReason::NoSuchFileOrDirectory, FailureReason::Unknown]
-        } else if stderr_lower.contains("cannot connect to the docker daemon")
-            || stderr_lower.contains("docker daemon is not running")
-        {
-            vec![FailureReason::DaemonNotRunning, FailureReason::Unknown]
         } else {
             vec![
                 FailureReason::PermissionDenied,
@@ -325,16 +332,27 @@ impl DomainCriteriaProvider for SystemCliCriteriaProvider {
         let cmd_lower = state.command.to_lowercase();
         let is_macos = cfg!(target_os = "macos");
 
+        let is_docker_daemon_error = (cmd_lower.contains("docker")
+            || stderr_lower.contains("docker daemon")
+            || stderr_lower.contains("cannot connect to the docker")
+            || stderr_lower.contains("failed to connect to the docker")
+            || stderr_lower.contains("docker.sock"))
+            && state.exit_code != 127
+            && !stderr_lower.contains("command not found");
+
         let mut actions = Vec::new();
 
         if state.exit_code == 126 || stderr_lower.contains("permission denied") {
             actions.push(ActionStrategy::PrependSudo);
             actions.push(ActionStrategy::ChmodExecutable);
+        } else if is_docker_daemon_error {
+            actions.push(ActionStrategy::DockerStartDaemon);
+            actions.push(ActionStrategy::PrependSudo);
         } else if state.exit_code == 127 || stderr_lower.contains("command not found") {
-            if state.entities.contains_key("suggested_binary")
-                || state.entities.contains_key("missing_command")
-            {
-                actions.push(ActionStrategy::PathCorrection);
+            if let Some(suggested) = state.entities.get("suggested_binary") {
+                if state.argv.first().map(|s| s.as_str()) != Some(suggested.as_str()) {
+                    actions.push(ActionStrategy::PathCorrection);
+                }
             }
             if is_macos {
                 actions.push(ActionStrategy::BrewInstallPackage);
@@ -345,16 +363,12 @@ impl DomainCriteriaProvider for SystemCliCriteriaProvider {
         } else if stderr_lower.contains("no such file or directory") {
             actions.push(ActionStrategy::MakeDirectory);
             actions.push(ActionStrategy::PrependSudo);
-        } else if cmd_lower.contains("docker")
-            || stderr_lower.contains("docker daemon")
-            || stderr_lower.contains("cannot connect to the docker daemon")
-        {
-            actions.push(ActionStrategy::DockerStartDaemon);
-            actions.push(ActionStrategy::PrependSudo);
         } else {
             actions.push(ActionStrategy::PrependSudo);
-            if state.entities.contains_key("suggested_binary") {
-                actions.push(ActionStrategy::PathCorrection);
+            if let Some(suggested) = state.entities.get("suggested_binary") {
+                if state.argv.first().map(|s| s.as_str()) != Some(suggested.as_str()) {
+                    actions.push(ActionStrategy::PathCorrection);
+                }
             }
             if state.entities.contains_key("suggested_subcommand") {
                 actions.push(ActionStrategy::SubcommandCorrection);
