@@ -191,32 +191,39 @@ impl std::str::FromStr for FailureReason {
     }
 }
 
-/// Captured execution state before remediation
+pub const KNOWN_PROXY_WRAPPERS: &[&str] = &["rtk", "sudo", "doas", "time", "nohup", "env"];
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionState {
-    /// Original raw command line executed by the user/agent
     pub command: String,
-    /// Parsed command tokens (argv)
     pub argv: Vec<String>,
-    /// Exit status code returned by the command
+    #[serde(default)]
+    pub wrappers: Vec<String>,
     pub exit_code: i32,
-    /// Working directory during execution
     pub cwd: String,
-    /// Sanitized, tail-truncated stderr/stdout lines
     pub sanitized_lines: Vec<String>,
-    /// Environment variables snapshot (selected critical vars)
     pub env: HashMap<String, String>,
-    /// Structured entities extracted by regex or fast-path heuristics
     pub entities: HashMap<String, String>,
 }
 
 impl ExecutionState {
     pub fn new(command: impl Into<String>, exit_code: i32) -> Self {
         let cmd = command.into();
-        let argv = cmd.split_whitespace().map(String::from).collect();
+        let mut argv: Vec<String> = cmd.split_whitespace().map(String::from).collect();
+        let mut wrappers = Vec::new();
+
+        while let Some(first) = argv.first() {
+            if KNOWN_PROXY_WRAPPERS.contains(&first.as_str()) {
+                wrappers.push(argv.remove(0));
+            } else {
+                break;
+            }
+        }
+
         Self {
             command: cmd,
             argv,
+            wrappers,
             exit_code,
             cwd: std::env::current_dir()
                 .map(|p| p.to_string_lossy().into_owned())
@@ -225,6 +232,11 @@ impl ExecutionState {
             env: HashMap::new(),
             entities: HashMap::new(),
         }
+    }
+
+    pub fn with_wrappers(mut self, wrappers: Vec<String>) -> Self {
+        self.wrappers = wrappers;
+        self
     }
 
     pub fn with_sanitized_lines(mut self, lines: Vec<String>) -> Self {
@@ -298,7 +310,9 @@ pub enum SafetyError {
     MissingEntity(String),
 }
 
+pub mod hook_protocol;
 pub mod rule;
+pub use hook_protocol::*;
 pub use rule::{Rule, RuleRegistry};
 
 #[cfg(test)]
@@ -339,5 +353,16 @@ mod tests {
         assert_eq!(state.argv, vec!["git", "push", "origin", "main"]);
         assert_eq!(state.exit_code, 1);
         assert_eq!(state.sanitized_lines.len(), 1);
+    }
+
+    #[test]
+    fn test_execution_state_wrapper_stripping() {
+        let state = ExecutionState::new("rtk git push origin main", 1);
+        assert_eq!(state.wrappers, vec!["rtk"]);
+        assert_eq!(state.argv, vec!["git", "push", "origin", "main"]);
+
+        let state_multi = ExecutionState::new("sudo rtk cargo test", 1);
+        assert_eq!(state_multi.wrappers, vec!["sudo", "rtk"]);
+        assert_eq!(state_multi.argv, vec!["cargo", "test"]);
     }
 }

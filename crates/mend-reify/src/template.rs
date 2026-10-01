@@ -12,10 +12,17 @@ impl TemplateRenderer {
     ) -> Result<RemediationCandidate, SafetyError> {
         let (rendered_command, explanation) = match strategy {
             ActionStrategy::PrependSudo => {
-                let cmd = if state.command.starts_with("sudo ") {
-                    state.command.clone()
+                let inner = if !state.argv.is_empty() {
+                    state.argv.join(" ")
+                } else if state.command.starts_with("sudo ") {
+                    state.command[5..].to_string()
                 } else {
-                    format!("sudo {}", state.command)
+                    state.command.clone()
+                };
+                let cmd = if inner.starts_with("sudo ") {
+                    inner
+                } else {
+                    format!("sudo {}", inner)
                 };
                 (
                     cmd,
@@ -256,14 +263,35 @@ impl TemplateRenderer {
             explanation
         };
 
+        let final_rendered_command = Self::attach_wrappers(rendered_command, &state.wrappers);
+
         Ok(RemediationCandidate {
             strategy: strategy.clone(),
-            rendered_command,
+            rendered_command: final_rendered_command,
             explanation,
             confidence,
             destructive_risk,
             is_fast_path,
         })
+    }
+
+    fn attach_wrappers(rendered: String, wrappers: &[String]) -> String {
+        if wrappers.is_empty() {
+            return rendered;
+        }
+
+        let mut prefix_parts = Vec::new();
+        for w in wrappers {
+            if !rendered.split_whitespace().any(|token| token == w) {
+                prefix_parts.push(w.clone());
+            }
+        }
+
+        if prefix_parts.is_empty() {
+            rendered
+        } else {
+            format!("{} {}", prefix_parts.join(" "), rendered)
+        }
     }
 
     fn guess_git_branch(state: &ExecutionState) -> Option<String> {
@@ -336,5 +364,24 @@ mod tests {
             TemplateRenderer::render(&ActionStrategy::PathCorrection, &state, 0.99, 0.01, true)
                 .expect("Render should succeed");
         assert_eq!(cand.rendered_command, "git status");
+    }
+
+    #[test]
+    fn test_render_with_rtk_wrapper() {
+        let mut entities = HashMap::new();
+        entities.insert("remote".to_string(), "origin".to_string());
+        entities.insert("branch".to_string(), "feat".to_string());
+
+        let state = ExecutionState::new("rtk git push", 128).with_entities(entities);
+        assert_eq!(state.wrappers, vec!["rtk"]);
+        assert_eq!(state.argv, vec!["git", "push"]);
+
+        let cand =
+            TemplateRenderer::render(&ActionStrategy::GitSetUpstream, &state, 0.95, 0.05, true)
+                .expect("Render should succeed");
+        assert_eq!(
+            cand.rendered_command,
+            "rtk git push --set-upstream origin feat"
+        );
     }
 }

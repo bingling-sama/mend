@@ -1,13 +1,18 @@
 use clap::{Parser, Subcommand};
 use mend_capture::{sanitize_stderr, EntityExtractor, PtyRunner};
-use mend_core::{ExecutionState, RemediationCandidate};
+use mend_core::{
+    AgentHookInput, AgentHookOutput, ExecutionState, HookDecision, RemediationCandidate,
+    RemediationSummary,
+};
 use mend_jev::{CriteriaRouter, JevClient};
 use mend_reify::{SafetyGate, TemplateRenderer};
 use std::env;
 use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::io::{self, IsTerminal, Read, Write};
 use std::path::PathBuf;
 use std::process::{Command, ExitCode};
+
+const MEND_IN_FLIGHT_ENV: &str = "_MEND_IN_FLIGHT";
 
 pub mod config;
 pub mod daemon;
@@ -43,6 +48,22 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    AgentHook {
+        #[arg(long, default_value = "auto")]
+        mode: String,
+
+        #[arg(long)]
+        command: Option<String>,
+
+        #[arg(long)]
+        exit_code: Option<i32>,
+
+        #[arg(long)]
+        stderr: Option<String>,
+
+        #[arg(long)]
+        json: bool,
+    },
     Exec {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         cmd: Vec<String>,
@@ -59,6 +80,9 @@ enum Commands {
     },
     Init {
         shell: Option<String>,
+
+        #[arg(long)]
+        claude_code: bool,
     },
 }
 
@@ -94,11 +118,37 @@ async fn main() -> ExitCode {
     }
 
     match cli.command {
-        Some(Commands::Init { shell: Some(s) }) => {
+        Some(Commands::AgentHook {
+            mode,
+            command,
+            exit_code,
+            stderr,
+            json,
+        }) => {
+            handle_agent_hook(
+                mode,
+                command,
+                exit_code,
+                stderr,
+                json,
+                &final_endpoint,
+                final_api_key.as_deref(),
+                &cfg,
+            )
+            .await
+        }
+        Some(Commands::Init {
+            shell: None,
+            claude_code: true,
+        }) => handle_init_claude_code(),
+        Some(Commands::Init { shell: Some(s), .. }) => {
             println!("{}", generate_shell_hook(&s));
             ExitCode::SUCCESS
         }
-        Some(Commands::Init { shell: None }) => handle_init(),
+        Some(Commands::Init {
+            shell: None,
+            claude_code: false,
+        }) => handle_init(),
         Some(Commands::Exec { cmd }) => {
             if cmd.is_empty() {
                 eprintln!("Usage: mend exec -- <COMMAND> [ARGS...]");
@@ -202,6 +252,301 @@ fn handle_init() -> ExitCode {
     ExitCode::SUCCESS
 }
 
+fn handle_init_claude_code() -> ExitCode {
+    let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let settings_path = PathBuf::from(&home).join(".claude/settings.json");
+
+    println!("\x1b[1;32m=== mend Claude Code Hook 初始化 ===\x1b[0m");
+    println!("目标配置文件: \x1b[1;34m{}\x1b[0m", settings_path.display());
+
+    let mut settings: serde_json::Value = if settings_path.exists() {
+        let content = fs::read_to_string(&settings_path).unwrap_or_else(|_| "{}".to_string());
+        serde_json::from_str(&content).unwrap_or_else(|_| serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    if !settings.is_object() {
+        settings = serde_json::json!({});
+    }
+    let map = settings.as_object_mut().unwrap();
+    let hooks = map.entry("hooks").or_insert_with(|| serde_json::json!({}));
+    if !hooks.is_object() {
+        *hooks = serde_json::json!({});
+    }
+    let post_tool_use = hooks
+        .as_object_mut()
+        .unwrap()
+        .entry("PostToolUse")
+        .or_insert_with(|| serde_json::json!([]));
+
+    let already_present = post_tool_use
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .any(|entry| entry.to_string().contains("mend agent-hook"))
+        })
+        .unwrap_or(false);
+
+    if already_present {
+        println!(
+            "\x1b[1;33m[已存在]\x1b[0m settings.json 中已包含 mend agent-hook 钩子，无需重复写入。"
+        );
+        return ExitCode::SUCCESS;
+    }
+
+    if let Some(arr) = post_tool_use.as_array_mut() {
+        arr.push(serde_json::json!({
+            "matcher": "Bash",
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": "mend agent-hook"
+                }
+            ]
+        }));
+    }
+
+    let formatted = match serde_json::to_string_pretty(&settings) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("\x1b[1;31m[错误]\x1b[0m 序列化 JSON 失败: {}", e);
+            return ExitCode::from(1);
+        }
+    };
+
+    if let Err(e) = fs::write(&settings_path, formatted) {
+        eprintln!("\x1b[1;31m[错误]\x1b[0m 写入 settings.json 失败: {}", e);
+        return ExitCode::from(1);
+    }
+
+    println!("\x1b[1;32m[成功]\x1b[0m 已将 mend agent-hook 注入到 Claude Code PostToolUse 钩子！");
+    println!("现在当 Claude Code 运行 Bash 报错时，mend 将在后台就地自愈。");
+    ExitCode::SUCCESS
+}
+
+async fn handle_agent_hook(
+    mode: String,
+    cli_command: Option<String>,
+    cli_exit_code: Option<i32>,
+    cli_stderr: Option<String>,
+    json_flag: bool,
+    endpoint: &str,
+    api_key: Option<&str>,
+    cfg: &AppConfig,
+) -> ExitCode {
+    let mut stdin_buf = String::new();
+    if !io::stdin().is_terminal() {
+        let _ = io::stdin().read_to_string(&mut stdin_buf);
+    }
+
+    let input: AgentHookInput = if !stdin_buf.trim().is_empty() {
+        serde_json::from_str(&stdin_buf).unwrap_or_default()
+    } else {
+        AgentHookInput::default()
+    };
+
+    let command = cli_command
+        .or_else(|| input.extract_command())
+        .unwrap_or_default();
+    let exit_code = cli_exit_code.unwrap_or_else(|| input.extract_exit_code());
+    let raw_stderr = cli_stderr
+        .or_else(|| {
+            let s = input.extract_stderr();
+            if s.is_empty() {
+                None
+            } else {
+                Some(s)
+            }
+        })
+        .unwrap_or_default();
+
+    let is_json = json_flag || input.hook_event_name.is_some();
+
+    if exit_code == 0 {
+        if is_json {
+            let resp = AgentHookOutput {
+                decision: HookDecision::Ignored,
+                original_command: command,
+                original_exit_code: 0,
+                new_exit_code: None,
+                suggested_command: None,
+                system_message: None,
+                updated_output: None,
+                remediation: None,
+            };
+            println!("{}", serde_json::to_string(&resp).unwrap());
+        }
+        return ExitCode::SUCCESS;
+    }
+
+    if env::var(MEND_IN_FLIGHT_ENV).is_ok() {
+        eprintln!("[mend:recursion-breaker] In-flight healing detected. Skipping.");
+        if is_json {
+            let resp = AgentHookOutput {
+                decision: HookDecision::CircuitBroken,
+                original_command: command,
+                original_exit_code: exit_code,
+                new_exit_code: None,
+                suggested_command: None,
+                system_message: Some("Anti-recursion lock triggered".to_string()),
+                updated_output: None,
+                remediation: None,
+            };
+            println!("{}", serde_json::to_string(&resp).unwrap());
+        }
+        return ExitCode::from(exit_code as u8);
+    }
+
+    env::set_var(MEND_IN_FLIGHT_ENV, "1");
+
+    let sanitized = sanitize_stderr(raw_stderr.as_bytes(), 12);
+    let mut state =
+        ExecutionState::new(&command, exit_code).with_sanitized_lines(sanitized.clone());
+
+    let extractor = EntityExtractor::new();
+    let entities = extractor.extract(&command, &sanitized);
+    state = state.with_entities(entities);
+
+    let remediation_candidate = resolve_remediation(&mut state, endpoint, api_key, cfg).await;
+
+    match remediation_candidate {
+        Some(cand) => {
+            if let Err(safety_err) =
+                SafetyGate::verify(&cand.strategy, cand.destructive_risk, cand.confidence, true)
+            {
+                eprintln!("[mend:safety-gate] Circuit breaker triggered: {}", safety_err);
+                if is_json {
+                    let resp = AgentHookOutput {
+                        decision: HookDecision::CircuitBroken,
+                        original_command: command,
+                        original_exit_code: exit_code,
+                        new_exit_code: None,
+                        suggested_command: Some(cand.rendered_command.clone()),
+                        system_message: Some(format!("Safety gate blocked: {}", safety_err)),
+                        updated_output: None,
+                        remediation: Some(RemediationSummary {
+                            strategy: cand.strategy.as_str().to_string(),
+                            command: cand.rendered_command.clone(),
+                            confidence: cand.confidence,
+                            destructive_risk: cand.destructive_risk,
+                        }),
+                    };
+                    println!("{}", serde_json::to_string(&resp).unwrap());
+                }
+                return ExitCode::from(exit_code as u8);
+            }
+
+            if mode == "suggest" {
+                eprintln!("[mend:suggestion] Suggested fix: {}", cand.rendered_command);
+                if is_json {
+                    let resp = AgentHookOutput {
+                        decision: HookDecision::Suggested,
+                        original_command: command,
+                        original_exit_code: exit_code,
+                        new_exit_code: None,
+                        suggested_command: Some(cand.rendered_command.clone()),
+                        system_message: Some(format!("Suggested fix: {}", cand.rendered_command)),
+                        updated_output: None,
+                        remediation: Some(RemediationSummary {
+                            strategy: cand.strategy.as_str().to_string(),
+                            command: cand.rendered_command,
+                            confidence: cand.confidence,
+                            destructive_risk: cand.destructive_risk,
+                        }),
+                    };
+                    println!("{}", serde_json::to_string(&resp).unwrap());
+                }
+                return ExitCode::from(exit_code as u8);
+            }
+
+            eprintln!("[auto-mended] Retrying with: {}", cand.rendered_command);
+
+            let retry_tokens: Vec<String> = cand
+                .rendered_command
+                .split_whitespace()
+                .map(String::from)
+                .collect();
+            if retry_tokens.is_empty() {
+                return ExitCode::from(exit_code as u8);
+            }
+
+            let retry_prog = &retry_tokens[0];
+            let retry_args = &retry_tokens[1..];
+            let pty_runner = PtyRunner::default();
+            let env_overrides = [(MEND_IN_FLIGHT_ENV.to_string(), "1".to_string())];
+
+            match pty_runner.run(retry_prog, retry_args, &env_overrides, None, true) {
+                Ok(retry_out) => {
+                    if retry_out.exit_code == 0 {
+                        eprintln!("[auto-mended] Remediation successful.");
+                        let mut cache = TelemetryCache::load();
+                        cache.record_success(&command, &cand.strategy);
+
+                        let updated_output = format!(
+                            "[mend:auto-mended] Original command failed (exit {}).\n[mend:auto-mended] Applied fix: {}\n{}",
+                            exit_code,
+                            cand.rendered_command,
+                            String::from_utf8_lossy(&retry_out.raw_output)
+                        );
+
+                        if is_json {
+                            let resp = AgentHookOutput {
+                                decision: HookDecision::Remediated,
+                                original_command: command,
+                                original_exit_code: exit_code,
+                                new_exit_code: Some(0),
+                                suggested_command: Some(cand.rendered_command.clone()),
+                                system_message: Some(format!(
+                                    "Auto-mended via: {}",
+                                    cand.rendered_command
+                                )),
+                                updated_output: Some(updated_output),
+                                remediation: Some(RemediationSummary {
+                                    strategy: cand.strategy.as_str().to_string(),
+                                    command: cand.rendered_command,
+                                    confidence: cand.confidence,
+                                    destructive_risk: cand.destructive_risk,
+                                }),
+                            };
+                            println!("{}", serde_json::to_string(&resp).unwrap());
+                        }
+                        ExitCode::SUCCESS
+                    } else {
+                        eprintln!(
+                            "mend: Remediation retry failed with exit code {}",
+                            retry_out.exit_code
+                        );
+                        let mut cache = TelemetryCache::load();
+                        cache.record_failure(&command, &cand.strategy);
+                        ExitCode::from(retry_out.exit_code as u8)
+                    }
+                }
+                Err(e) => {
+                    eprintln!("mend: Failed to execute remediation: {}", e);
+                    ExitCode::from(exit_code as u8)
+                }
+            }
+        }
+        None => {
+            if is_json {
+                let resp = AgentHookOutput {
+                    decision: HookDecision::Ignored,
+                    original_command: command,
+                    original_exit_code: exit_code,
+                    new_exit_code: None,
+                    suggested_command: None,
+                    system_message: Some("No remediation strategy matched".to_string()),
+                    updated_output: None,
+                    remediation: None,
+                };
+                println!("{}", serde_json::to_string(&resp).unwrap());
+            }
+            ExitCode::from(exit_code as u8)
+        }
+    }
+}
+
 async fn handle_exec(
     cmd_tokens: Vec<String>,
     endpoint: &str,
@@ -223,6 +568,10 @@ async fn handle_exec(
 
     if initial_run.exit_code == 0 {
         return ExitCode::SUCCESS;
+    }
+
+    if env::var(MEND_IN_FLIGHT_ENV).is_ok() {
+        return ExitCode::from(initial_run.exit_code as u8);
     }
 
     let sanitized = sanitize_stderr(&initial_run.raw_output, 12);
@@ -260,8 +609,9 @@ async fn handle_exec(
 
             let retry_prog = &retry_tokens[0];
             let retry_args = &retry_tokens[1..];
+            let env_overrides = [(MEND_IN_FLIGHT_ENV.to_string(), "1".to_string())];
 
-            match pty_runner.run(retry_prog, retry_args, &[], None, true) {
+            match pty_runner.run(retry_prog, retry_args, &env_overrides, None, true) {
                 Ok(retry_out) => {
                     if retry_out.exit_code == 0 {
                         eprintln!("[auto-mended] Remediation successful.");
